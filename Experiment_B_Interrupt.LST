@@ -1,0 +1,151 @@
+A51 MACRO ASSEMBLER  EXPERIMENT_B_INTERRUPT                                               08/17/2026 09:00:54 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.2.7.0
+OBJECT MODULE PLACED IN Experiment_B_Interrupt.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE Experiment_B_Interrupt.asm
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ; UGEA2633 Lab 3 - Experiment B
+                       2     ; 8051 UART transmission driven by the serial interrupt
+                       3     ; Target: AT89S52, 11.0592 MHz crystal, 9600 baud, 8-N-1
+                       4     ;
+                       5     ; While the serial ISR sends the message, the main loop continuously changes
+                       6     ; Port 1. In the Keil simulator, observe P1 to prove that the main loop keeps
+                       7     ; running while transmission is handled by interrupts.
+                       8     
+                       9     ; Keil A51 predefines the standard 8051 SFR and bit names used below.
+                      10     
+0000                  11             ORG 0000H
+0000 020030           12             LJMP START
+                      13     
+0023                  14             ORG 0023H            ; 8051 serial interrupt vector
+0023 020062           15             LJMP SERIAL_ISR
+                      16     
+0030                  17             ORG 0030H
+0030                  18     START:
+0030 75815F           19             MOV SP, #5FH
+0033 759000           20             MOV P1, #00H
+0036 120049           21             LCALL UART_INIT
+                      22     
+0039 900097           23             MOV DPTR, #MESSAGE
+003C D2AC             24             SETB ES               ; enable serial interrupt
+003E D2AF             25             SETB EA               ; enable global interrupt
+0040 D299             26             SETB TI               ; software kick: request first ISR service
+                      27     
+                      28     ; Independent foreground work. This does not poll TI or wait for the UART.
+0042                  29     MAIN_LOOP:
+0042 0590             30             INC P1
+0044 12008A           31             LCALL VISIBLE_DELAY
+0047 80F9             32             SJMP MAIN_LOOP
+                      33     
+                      34     ; Configure UART mode 1 and Timer 1 mode 2.
+0049                  35     UART_INIT:
+0049 53877F           36             ANL PCON, #07FH       ; SMOD = 0
+004C 53890F           37             ANL TMOD, #00FH       ; preserve Timer 0 settings
+004F 438920           38             ORL TMOD, #020H       ; Timer 1 mode 2, 8-bit auto-reload
+0052 758DFD           39             MOV TH1, #0FDH
+0055 758BFD           40             MOV TL1, #0FDH
+0058 759850           41             MOV SCON, #050H       ; UART mode 1, receiver enabled
+005B C299             42             CLR TI
+005D C298             43             CLR RI
+005F D28E             44             SETB TR1
+0061 22               45             RET
+                      46     
+                      47     ; The serial interrupt is shared by transmit (TI) and receive (RI), so both
+                      48     ; flags are checked. Received bytes are discarded because this experiment only
+                      49     ; requires transmission.
+0062                  50     SERIAL_ISR:
+0062 C0E0             51             PUSH ACC
+0064 C0D0             52             PUSH PSW
+0066 C082             53             PUSH DPL
+0068 C083             54             PUSH DPH
+                      55     
+006A 309804           56             JNB RI, CHECK_TI
+006D C298             57             CLR RI
+006F E599             58             MOV A, SBUF           ; read and discard any received character
+A51 MACRO ASSEMBLER  EXPERIMENT_B_INTERRUPT                                               08/17/2026 09:00:54 PAGE     2
+
+                      59     
+0071                  60     CHECK_TI:
+0071 30990D           61             JNB TI, SERIAL_EXIT
+0074 C299             62             CLR TI
+0076 E4               63             CLR A
+0077 93               64             MOVC A, @A+DPTR
+0078 6005             65             JZ MESSAGE_DONE
+007A F599             66             MOV SBUF, A
+007C A3               67             INC DPTR
+007D 8002             68             SJMP SERIAL_EXIT
+                      69     
+007F                  70     MESSAGE_DONE:
+007F C2AC             71             CLR ES               ; one message is complete; stop serial IRQs
+                      72     
+0081                  73     SERIAL_EXIT:
+0081 D083             74             POP DPH
+0083 D082             75             POP DPL
+0085 D0D0             76             POP PSW
+0087 D0E0             77             POP ACC
+0089 32               78             RETI
+                      79     
+                      80     ; Slow enough for P1 changes to be visible in the simulator.
+008A                  81     VISIBLE_DELAY:
+008A 7D08             82             MOV R5, #08H
+008C                  83     DELAY_OUTER:
+008C 7EFF             84             MOV R6, #0FFH
+008E                  85     DELAY_MIDDLE:
+008E 7FFF             86             MOV R7, #0FFH
+0090 DFFE             87             DJNZ R7, $
+0092 DEFA             88             DJNZ R6, DELAY_MIDDLE
+0094 DDF6             89             DJNZ R5, DELAY_OUTER
+0096 22               90             RET
+                      91     
+0097                  92     MESSAGE:
+0097 5452414E         93             DB 'TRANSMIT OK!', 0DH, 0AH, 00H
+009B 534D4954                
+009F 204F4B21                
+00A3 0D0A00                  
+                      94     
+                      95             END
+A51 MACRO ASSEMBLER  EXPERIMENT_B_INTERRUPT                                               08/17/2026 09:00:54 PAGE     3
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+ACC. . . . . . . .  D ADDR   00E0H   A   
+CHECK_TI . . . . .  C ADDR   0071H   A   
+DELAY_MIDDLE . . .  C ADDR   008EH   A   
+DELAY_OUTER. . . .  C ADDR   008CH   A   
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+ES . . . . . . . .  B ADDR   00A8H.4 A   
+MAIN_LOOP. . . . .  C ADDR   0042H   A   
+MESSAGE. . . . . .  C ADDR   0097H   A   
+MESSAGE_DONE . . .  C ADDR   007FH   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+RI . . . . . . . .  B ADDR   0098H.0 A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SERIAL_EXIT. . . .  C ADDR   0081H   A   
+SERIAL_ISR . . . .  C ADDR   0062H   A   
+SP . . . . . . . .  D ADDR   0081H   A   
+START. . . . . . .  C ADDR   0030H   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+UART_INIT. . . . .  C ADDR   0049H   A   
+VISIBLE_DELAY. . .  C ADDR   008AH   A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)

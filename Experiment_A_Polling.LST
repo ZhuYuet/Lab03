@@ -1,0 +1,96 @@
+A51 MACRO ASSEMBLER  EXPERIMENT_A_POLLING                                                 08/17/2026 09:00:54 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.2.7.0
+OBJECT MODULE PLACED IN Experiment_A_Polling.OBJ
+ASSEMBLER INVOKED BY: C:\Keil_v5\C51\BIN\A51.EXE Experiment_A_Polling.asm
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ; UGEA2633 Lab 3 - Experiment A
+                       2     ; 8051 UART transmission using polling (no serial interrupt)
+                       3     ; Target: AT89S52, 11.0592 MHz crystal, 9600 baud, 8-N-1
+                       4     
+                       5     ; Keil A51 predefines the standard 8051 SFR and bit names used below.
+                       6     
+0000                   7             ORG 0000H
+0000 020003            8             LJMP START
+                       9     
+0003                  10     START:
+0003 75815F           11             MOV SP, #5FH
+0006 120018           12             LCALL UART_INIT
+                      13     
+0009 90003B           14             MOV DPTR, #MESSAGE
+                      15     
+000C                  16     SEND_NEXT:
+000C E4               17             CLR A
+000D 93               18             MOVC A, @A+DPTR
+000E 6006             19             JZ TRANSMISSION_DONE
+0010 120031           20             LCALL UART_PUTC
+0013 A3               21             INC DPTR
+0014 80F6             22             SJMP SEND_NEXT
+                      23     
+0016                  24     TRANSMISSION_DONE:
+0016 80FE             25             SJMP TRANSMISSION_DONE
+                      26     
+                      27     ; Configure UART mode 1 and Timer 1 mode 2.
+                      28     ; Baud = 11.0592 MHz / (384 * (256 - FDH)) = 9600 baud.
+0018                  29     UART_INIT:
+0018 53877F           30             ANL PCON, #07FH       ; SMOD = 0
+001B 53890F           31             ANL TMOD, #00FH       ; preserve Timer 0 settings
+001E 438920           32             ORL TMOD, #020H       ; Timer 1 mode 2, 8-bit auto-reload
+0021 758DFD           33             MOV TH1, #0FDH
+0024 758BFD           34             MOV TL1, #0FDH
+0027 759850           35             MOV SCON, #050H       ; UART mode 1, receiver enabled
+002A C299             36             CLR TI
+002C C298             37             CLR RI
+002E D28E             38             SETB TR1
+0030 22               39             RET
+                      40     
+                      41     ; Send the character in A, then poll TI until transmission completes.
+0031                  42     UART_PUTC:
+0031 C299             43             CLR TI
+0033 F599             44             MOV SBUF, A
+0035                  45     WAIT_FOR_TI:
+0035 3099FD           46             JNB TI, WAIT_FOR_TI
+0038 C299             47             CLR TI
+003A 22               48             RET
+                      49     
+003B                  50     MESSAGE:
+003B 5452414E         51             DB 'TRANSMIT OK!', 0DH, 0AH, 00H
+003F 534D4954                
+0043 204F4B21                
+0047 0D0A00                  
+                      52     
+                      53             END
+A51 MACRO ASSEMBLER  EXPERIMENT_A_POLLING                                                 08/17/2026 09:00:54 PAGE     2
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+MESSAGE. . . . . .  C ADDR   003BH   A   
+PCON . . . . . . .  D ADDR   0087H   A   
+RI . . . . . . . .  B ADDR   0098H.0 A   
+SBUF . . . . . . .  D ADDR   0099H   A   
+SCON . . . . . . .  D ADDR   0098H   A   
+SEND_NEXT. . . . .  C ADDR   000CH   A   
+SP . . . . . . . .  D ADDR   0081H   A   
+START. . . . . . .  C ADDR   0003H   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TI . . . . . . . .  B ADDR   0098H.1 A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TRANSMISSION_DONE.  C ADDR   0016H   A   
+UART_INIT. . . . .  C ADDR   0018H   A   
+UART_PUTC. . . . .  C ADDR   0031H   A   
+WAIT_FOR_TI. . . .  C ADDR   0035H   A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)
