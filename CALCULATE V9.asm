@@ -21,7 +21,7 @@ EV_OP_BASE     EQU 0BFH
 EV_RESULT_DEC  EQU 0D0H
 EV_RESULT_BIN  EQU 0D1H
 EV_ERROR       EQU 0D2H
-EV_RESULT_FRAC EQU 0D3H          
+EV_RESULT_REM  EQU 0D3H          ; Quotient and remainder result
 EV_STARTUP     EQU 0E0H
 EV_MODE_AR     EQU 0E1H
 EV_MODE_LOG    EQU 0E2H
@@ -33,6 +33,10 @@ EV_EQUALS      EQU 0E7H
 EV_SCROLL_LEFT EQU 0E8H
 EV_SCROLL_RIGHT EQU 0E9H
 EV_BACKSPACE	EQU 0EAH
+EV_BACKSPACE_ANS EQU 0EBH       ; Delete the complete ANS token
+EV_POWER_OFF    EQU 0ECH        ; LCD off while process waits for DEL
+EV_BS_SHOW_OP   EQU 0EDH        ; Backspace exposed an operator
+EV_BS_REMOVE_OP EQU 0EEH        ; Backspace removed an operator
 
 ; ==============================
 ; 		RAM ALLOCATIONS
@@ -64,7 +68,10 @@ TX_BYTE     EQU 47H
 ; R2:R3 = operand 1/result, R4:R5 = operand 2
 ; R6 = operator, R7 = 0 operand 1 / 1 operand 2 / 2 unary locked
 ; 20H.0 error, 20H.1 star pending, 20H.2 negative magnitude
-; 20H.3 result displayed, 20H.4 current operand has an accepted digit
+; 20H.3 equals/result lock, 20H.4 current operand has an accepted digit
+; 20H.5 operand 1 is the complete ANS token
+; 20H.6 dedicated backspace lock after '='
+; 20H.7 software power-off state
 
 ; ==============================
 ; 	MAIN LOOP & KEY DISPATCHER
@@ -81,16 +88,28 @@ MAIN:
     LCALL UART_INIT
     MOV MODE, #00H
     LCALL RESET_STATE
+    SETB 20H.7                 ; Start off; DEL performs the first power-on
 
 CALC_LOOP:
+    JB 20H.7, POWER_OFF_WAIT
     JNB P2.0, DO_BACKSPACE
 	LCALL KEYPAD_SCAN
     CJNE A, #0FFH, PROCESS_KEY
     LJMP CALC_LOOP
 
 DO_BACKSPACE:
+	MOV A, MODE
+	JNZ DO_ACTIVE_MODE_BACKSPACE
+	LCALL HANDLE_POWER_KEY
+	LJMP CALC_LOOP
+DO_ACTIVE_MODE_BACKSPACE:
 	LCALL HANDLE_BACKSPACE
 	LJMP CALC_LOOP
+
+POWER_OFF_WAIT:
+    JB P2.0, POWER_OFF_WAIT      ; While off, only DEL is monitored
+    LCALL HANDLE_POWER_KEY
+    LJMP CALC_LOOP
 	
 PROCESS_KEY:
     PUSH ACC
@@ -141,6 +160,10 @@ CHECK_DIGIT:
     CJNE A, #02H, $ + 3
     JNC IGNORE_BINARY_DIGIT
 CHECK_DIGIT_LOCK:
+    JNB 20H.5, CHECK_UNARY_DIGIT_LOCK
+    CJNE R7, #00H, CHECK_UNARY_DIGIT_LOCK
+    LJMP CALC_LOOP               ; Do not append a number directly to ANS
+CHECK_UNARY_DIGIT_LOCK:
     CJNE R7, #02H, DIGIT_NOT_LOCKED
     LJMP CALC_LOOP               
 DIGIT_NOT_LOCKED:
@@ -185,18 +208,25 @@ CHECK_OPERATOR:
     LJMP CALC_LOOP
 
 HASH_EXECUTE:
+    MOV A, R7
+    CJNE A, #01H, HASH_OPERANDS_READY
+    JNB 20H.4, HASH_IGNORE_INCOMPLETE
+HASH_OPERANDS_READY:
     MOV A, #EV_EQUALS
     LCALL SEND_BYTE
+    SETB 20H.3                    ; Lock backspace immediately after '='
+    SETB 20H.6
     JB 20H.0, EQUALS_SHOW_ERROR
     MOV ERROR_CODE, #00H
     LCALL EXECUTE_MATH
     JB 20H.0, EQUALS_SHOW_ERROR
     LCALL SEND_RESULT
-    SETB 20H.3
     LJMP CALC_LOOP
 	
 EQUALS_SHOW_ERROR:
     LCALL SEND_ERROR
+    LJMP CALC_LOOP
+HASH_IGNORE_INCOMPLETE:
     LJMP CALC_LOOP
 
 CHECK_MODE_OPERATOR:
@@ -301,6 +331,13 @@ HANDLE_BACKSPACE:
     JNB P2.0, $
     LCALL DEBOUNCE_DELAY
 
+    ; The completed equation is read-only until a new entry begins.
+    JNB 20H.6, BACKSPACE_ALLOWED
+    LCALL CLEAR_CURRENT           ; After '=', backspace behaves as Clear
+    SETB 20H.1                    ; Preserve the normal Clear/menu sequence
+    RET
+BACKSPACE_ALLOWED:
+
     ; --- CHECK UNARY OPERATOR LOCK (R7 = 2) ---
     MOV A, R7
     CJNE A, #02H, CHECK_OP2_STATE
@@ -312,11 +349,11 @@ HANDLE_BACKSPACE:
     ORL A, R3
     JZ UNARY_BS_NO_DIGIT
     SETB 20H.4
-    SJMP SEND_BACKSPACE_EVENT
+    LJMP SEND_BACKSPACE_REMOVE_OPERATOR
 
 UNARY_BS_NO_DIGIT:
     CLR 20H.4
-    SJMP SEND_BACKSPACE_EVENT
+    LJMP SEND_BACKSPACE_REMOVE_OPERATOR
 	
 CHECK_OP2_STATE:
     CJNE R7, #01H, BACKSPACE_OP1_CHECK
@@ -333,6 +370,11 @@ CHECK_OP2_STATE:
     MOV A, R5
     RRC A
     MOV R5, A
+    MOV A, OP2_BITS
+    JNZ OP2_BINARY_BS_SEND
+    CLR 20H.4
+    LJMP SEND_BACKSPACE_SHOW_OPERATOR
+OP2_BINARY_BS_SEND:
     SJMP SEND_BACKSPACE_EVENT
 
 OP2_DECIMAL_BS:
@@ -344,6 +386,12 @@ OP2_DECIMAL_BS:
     LCALL DIV_TMP_BY_10
     MOV R4, TMP_H
     MOV R5, TMP_L
+    MOV A, R4
+    ORL A, R5
+    JNZ OP2_DECIMAL_BS_SEND
+    CLR 20H.4
+    LJMP SEND_BACKSPACE_SHOW_OPERATOR
+OP2_DECIMAL_BS_SEND:
     SJMP SEND_BACKSPACE_EVENT
 
 BACKSPACE_OPERATOR:
@@ -354,14 +402,15 @@ BACKSPACE_OPERATOR:
     ORL A, R3
     JZ OP_BS_NO_DIGIT
     SETB 20H.4
-    SJMP SEND_BACKSPACE_EVENT
+	SJMP SEND_BACKSPACE_REMOVE_OPERATOR
 	
 OP_BS_NO_DIGIT:
     CLR 20H.4
-    SJMP SEND_BACKSPACE_EVENT
+	SJMP SEND_BACKSPACE_REMOVE_OPERATOR
 
 BACKSPACE_OP1_CHECK:
     CJNE R7, #00H, BACKSPACE_DONE
+    JB 20H.5, BACKSPACE_ANS_TOKEN
 
     ; --- BACKSPACE OP1 ---
     MOV A, MODE
@@ -387,12 +436,53 @@ OP1_DECIMAL_BS:
     MOV R2, TMP_H
     MOV R3, TMP_L
 
+    SJMP SEND_BACKSPACE_EVENT
+
+BACKSPACE_ANS_TOKEN:
+    ; ANS is one operand, so request one atomic token deletion.
+    CLR 20H.5
+    CLR 20H.2
+    CLR 20H.4
+    MOV R2, #00H
+    MOV R3, #00H
+    MOV REM_H, #00H
+    MOV REM_L, #00H
+    MOV OP1_BITS, #00H
+    MOV A, #EV_BACKSPACE_ANS
+    LJMP SEND_BYTE
+
 SEND_BACKSPACE_EVENT:
     MOV A, #EV_BACKSPACE
+    LCALL SEND_BYTE
+    SJMP BACKSPACE_DONE
+
+SEND_BACKSPACE_SHOW_OPERATOR:
+    MOV A, #EV_BS_SHOW_OP
+    LCALL SEND_BYTE
+    SJMP BACKSPACE_DONE
+
+SEND_BACKSPACE_REMOVE_OPERATOR:
+    MOV A, #EV_BS_REMOVE_OP
     LCALL SEND_BYTE
 
 BACKSPACE_DONE:
     RET
+
+HANDLE_POWER_KEY:
+    ; Debounce DEL before toggling the mode-menu power state.
+    JNB P2.0, $
+    LCALL DEBOUNCE_DELAY
+    JB 20H.7, POWER_ON_RESTART
+POWER_OFF:
+    SETB 20H.7
+    MOV A, #EV_POWER_OFF
+    LJMP SEND_BYTE
+POWER_ON_RESTART:
+    CLR 20H.7
+    MOV MODE, #00H
+    LCALL RESET_STATE
+    MOV A, #EV_STARTUP
+    LJMP SEND_BYTE
 
 ; =========================================================
 ; HELPER: Divide 16-bit value (TMP_H:TMP_L) by 10
@@ -451,6 +541,8 @@ RESET_STATE:
     CLR 20H.2
     CLR 20H.3
     CLR 20H.4
+    CLR 20H.5
+    CLR 20H.6
     RET
 
 SHOW_MODE_MENU:
@@ -500,6 +592,8 @@ PREPARE_ANS_EXPRESSION:
     MOV OP2_BITS, #00H
     CLR 20H.0
     CLR 20H.3
+    CLR 20H.6                    ; A new ANS operation unlocks backspace
+    SETB 20H.5                    ; Process and display now track ANS as a token
     MOV A, #EV_ANS
     LCALL SEND_BYTE
 PREPARE_ANS_DONE:
@@ -573,15 +667,12 @@ SEND_RESULT:
 SEND_DECIMAL_RESULT:
     MOV A, R6
     CJNE A, #04H, SEND_PLAIN_DECIMAL
-    MOV A, REM_H
-    ORL A, REM_L
-    JZ SEND_PLAIN_DECIMAL
-    MOV A, #EV_RESULT_FRAC
+    MOV A, #EV_RESULT_REM
     LCALL SEND_BYTE
     MOV A, #00H
-    JNB 20H.2, SEND_FRACTION_SIGN
+    JNB 20H.2, SEND_REMAINDER_SIGN
     INC A
-SEND_FRACTION_SIGN:
+SEND_REMAINDER_SIGN:
     LCALL SEND_BYTE
     MOV A, R2
     LCALL SEND_BYTE
@@ -590,10 +681,6 @@ SEND_FRACTION_SIGN:
     MOV A, REM_H
     LCALL SEND_BYTE
     MOV A, REM_L
-    LCALL SEND_BYTE
-    MOV A, R4
-    LCALL SEND_BYTE
-    MOV A, R5
     LJMP SEND_BYTE
 SEND_PLAIN_DECIMAL:
     MOV A, #EV_RESULT_DEC
@@ -1184,4 +1271,3 @@ SET_ERROR:
     RET
 
     END
-

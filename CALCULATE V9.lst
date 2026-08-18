@@ -41,7 +41,7 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
    21:		N      00D0	EV_RESULT_DEC  EQU 0D0H
    22:		N      00D1	EV_RESULT_BIN  EQU 0D1H
    23:		N      00D2	EV_ERROR       EQU 0D2H
-   24:		N      00D3	EV_RESULT_FRAC EQU 0D3H
+   24:		N      00D3	EV_RESULT_REM  EQU 0D3H          ; Quotient and remainder result
    25:		N      00E0	EV_STARTUP     EQU 0E0H
    26:		N      00E1	EV_MODE_AR     EQU 0E1H
    27:		N      00E2	EV_MODE_LOG    EQU 0E2H
@@ -53,14 +53,14 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
    33:		N      00E8	EV_SCROLL_LEFT EQU 0E8H
    34:		N      00E9	EV_SCROLL_RIGHT EQU 0E9H
    35:		N      00EA	EV_BACKSPACE	EQU 0EAH
-   36:
-   37:				; ==============================
-   38:				; 		RAM ALLOCATIONS
-   39:				; ==============================
-   40:		N      0030	DIGIT_TMP   EQU 30H
-   41:		N      0031	TMP_H       EQU 31H
-   42:		N      0032	TMP_L       EQU 32H
-   43:		N      0033	QUO_H       EQU 33H
+   36:		N      00EB	EV_BACKSPACE_ANS EQU 0EBH       ; Delete the complete ANS token
+   37:		N      00EC	EV_POWER_OFF    EQU 0ECH        ; LCD off while process waits for DEL
+   38:		N      00ED	EV_BS_SHOW_OP   EQU 0EDH        ; Backspace exposed an operator
+   39:		N      00EE	EV_BS_REMOVE_OP EQU 0EEH        ; Backspace removed an operator
+   40:
+   41:				; ==============================
+   42:				; 		RAM ALLOCATIONS
+   43:				; ==============================
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 2
 
@@ -68,62 +68,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-   44:		N      0034	QUO_L       EQU 34H
-   45:		N      0035	REM_H       EQU 35H
-   46:		N      0036	REM_L       EQU 36H
-   47:		N      0037	MC0         EQU 37H
-   48:		N      0038	MC1         EQU 38H
-   49:		N      0039	MC2         EQU 39H
-   50:		N      003A	MC3         EQU 3AH
-   51:		N      003B	PROD0       EQU 3BH
-   52:		N      003C	PROD1       EQU 3CH
-   53:		N      003D	PROD2       EQU 3DH
-   54:		N      003E	PROD3       EQU 3EH
-   55:		N      003F	MUL0        EQU 3FH
-   56:		N      0040	MUL1        EQU 40H
-   57:		N      0041	ERROR_CODE  EQU 41H
-   58:		N      0042	DIV_OVER    EQU 42H
-   59:		N      0044	MODE        EQU 44H
-   60:		N      0045	OP1_BITS    EQU 45H
-   61:		N      0046	OP2_BITS    EQU 46H
-   62:		N      0047	TX_BYTE     EQU 47H
-   63:
-   64:				; R2:R3 = operand 1/result, R4:R5 = operand 2
-   65:				; R6 = operator, R7 = 0 operand 1 / 1 operand 2 / 2 unary locked
-   66:				; 20H.0 error, 20H.1 star pending, 20H.2 negative magnitude
-   67:				; 20H.3 result displayed, 20H.4 current operand has an accepted digit
-   68:
-   69:				; ==============================
-   70:				; 	MAIN LOOP & KEY DISPATCHER
-   71:				; ==============================
-   72:		N      0000	    ORG 0000H
-   73:	  0000	02 00 03	    LJMP MAIN
-   74:
-   75:	  0003			MAIN:
-   76:	  0003	75 81 5F	    MOV SP, #5FH
-   77:	  0006	75 90 FF	    MOV P1, #0FFH
-   78:	  0009	75 A0 FF	    MOV P2, #0FFH
-   79:	  000C	D2 B0		    SETB P3.0
-   80:	  000E	D2 B1		    SETB P3.1
-   81:	  0010	12 02 F4	    LCALL UART_INIT
-   82:	  0013	75 44 00	    MOV MODE, #00H
-   83:	  0016	12 02 50	    LCALL RESET_STATE
-   84:
-   85:	  0019			CALC_LOOP:
-   86:	  0019	30 A0 09	    JNB P2.0, DO_BACKSPACE
-   87:	  001C	12 03 85		LCALL KEYPAD_SCAN
-   88:	  001F	B4 FF 09	    CJNE A, #0FFH, PROCESS_KEY
-   89:	  0022	02 00 19	    LJMP CALC_LOOP
-   90:
-   91:	  0025			DO_BACKSPACE:
-   92:	  0025	12 01 99		LCALL HANDLE_BACKSPACE
-   93:	  0028	02 00 19		LJMP CALC_LOOP
-   94:
-   95:	  002B			PROCESS_KEY:
-   96:	  002B	C0 E0		    PUSH ACC
-   97:	  002D	12 04 19	    LCALL WAIT_KEY_RELEASE
-   98:	  0030	D0 E0		    POP ACC
-   99:	  0032	F5 30		    MOV DIGIT_TMP, A
+   44:		N      0030	DIGIT_TMP   EQU 30H
+   45:		N      0031	TMP_H       EQU 31H
+   46:		N      0032	TMP_L       EQU 32H
+   47:		N      0033	QUO_H       EQU 33H
+   48:		N      0034	QUO_L       EQU 34H
+   49:		N      0035	REM_H       EQU 35H
+   50:		N      0036	REM_L       EQU 36H
+   51:		N      0037	MC0         EQU 37H
+   52:		N      0038	MC1         EQU 38H
+   53:		N      0039	MC2         EQU 39H
+   54:		N      003A	MC3         EQU 3AH
+   55:		N      003B	PROD0       EQU 3BH
+   56:		N      003C	PROD1       EQU 3CH
+   57:		N      003D	PROD2       EQU 3DH
+   58:		N      003E	PROD3       EQU 3EH
+   59:		N      003F	MUL0        EQU 3FH
+   60:		N      0040	MUL1        EQU 40H
+   61:		N      0041	ERROR_CODE  EQU 41H
+   62:		N      0042	DIV_OVER    EQU 42H
+   63:		N      0044	MODE        EQU 44H
+   64:		N      0045	OP1_BITS    EQU 45H
+   65:		N      0046	OP2_BITS    EQU 46H
+   66:		N      0047	TX_BYTE     EQU 47H
+   67:
+   68:				; R2:R3 = operand 1/result, R4:R5 = operand 2
+   69:				; R6 = operator, R7 = 0 operand 1 / 1 operand 2 / 2 unary locked
+   70:				; 20H.0 error, 20H.1 star pending, 20H.2 negative magnitude
+   71:				; 20H.3 equals/result lock, 20H.4 current operand has an accepted digit
+   72:				; 20H.5 operand 1 is the complete ANS token
+   73:				; 20H.6 dedicated backspace lock after '='
+   74:				; 20H.7 software power-off state
+   75:
+   76:				; ==============================
+   77:				; 	MAIN LOOP & KEY DISPATCHER
+   78:				; ==============================
+   79:		N      0000	    ORG 0000H
+   80:	  0000	02 00 03	    LJMP MAIN
+   81:
+   82:	  0003			MAIN:
+   83:	  0003	75 81 5F	    MOV SP, #5FH
+   84:	  0006	75 90 FF	    MOV P1, #0FFH
+   85:	  0009	75 A0 FF	    MOV P2, #0FFH
+   86:	  000C	D2 B0		    SETB P3.0
+   87:	  000E	D2 B1		    SETB P3.1
+   88:	  0010	12 03 8E	    LCALL UART_INIT
+   89:	  0013	75 44 00	    MOV MODE, #00H
+   90:	  0016	12 02 E2	    LCALL RESET_STATE
+   91:	  0019	D2 07		    SETB 20H.7                 ; Start off; DEL performs the first power-on
+   92:
+   93:	  001B			CALC_LOOP:
+   94:	  001B	20 07 1C	    JB 20H.7, POWER_OFF_WAIT
+   95:	  001E	30 A0 09	    JNB P2.0, DO_BACKSPACE
+   96:	  0021	12 04 11		LCALL KEYPAD_SCAN
+   97:	  0024	B4 FF 1C	    CJNE A, #0FFH, PROCESS_KEY
+   98:	  0027	02 00 1B	    LJMP CALC_LOOP
+   99:
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 3
 
@@ -131,62 +131,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  100:
-  101:	  0034	E5 44		    MOV A, MODE
-  102:	  0036	70 08		    JNZ ACTIVE_MODE_KEY
-  103:	  0038	E5 30		    MOV A, DIGIT_TMP
-  104:	  003A	12 02 7B	    LCALL SELECT_MODE
-  105:	  003D	02 00 19	    LJMP CALC_LOOP
-  106:
-  107:	  0040			ACTIVE_MODE_KEY:
-  108:	  0040	30 01 0D	    JNB 20H.1, CHECK_CLEAR_KEY
-  109:	  0043	C2 01		    CLR 20H.1
-  110:	  0045	E5 30		    MOV A, DIGIT_TMP
-  111:	  0047	B4 0F 06	    CJNE A, #0FH, CHECK_CLEAR_KEY
-  112:	  004A	12 02 70	    LCALL SHOW_MODE_MENU
-  113:	  004D	02 00 19	    LJMP CALC_LOOP
-  114:
-  115:	  0050			CHECK_CLEAR_KEY:
-  116:	  0050	E5 44		    MOV A, MODE
-  117:	  0052	B4 02 18	    CJNE A, #02H, CHECK_ACTUAL_CLEAR
-  118:	  0055	E5 30		    MOV A, DIGIT_TMP
-  119:	  0057	B4 04 08	    CJNE A, #04H, CHECK_SCROLL_RIGHT
-  120:	  005A	74 E8		    MOV A, #EV_SCROLL_LEFT
-  121:	  005C	12 03 0D	    LCALL SEND_BYTE
-  122:	  005F	02 00 19	    LJMP CALC_LOOP
-  123:	  0062			CHECK_SCROLL_RIGHT:
-  124:	  0062	B4 06 08	    CJNE A, #06H, CHECK_ACTUAL_CLEAR
-  125:	  0065	74 E9		    MOV A, #EV_SCROLL_RIGHT
-  126:	  0067	12 03 0D	    LCALL SEND_BYTE
-  127:	  006A	02 00 19	    LJMP CALC_LOOP
-  128:	  006D			CHECK_ACTUAL_CLEAR:
-  129:	  006D	E5 30		    MOV A, DIGIT_TMP
-  130:	  006F	B4 0E 08	    CJNE A, #0EH, CHECK_DIGIT
-  131:	  0072	12 02 A3	    LCALL CLEAR_CURRENT
-  132:	  0075	D2 01		    SETB 20H.1
-  133:	  0077	02 00 19	    LJMP CALC_LOOP
-  134:
-  135:	  007A			CHECK_DIGIT:
-  136:	  007A	B4 0A 00	    CJNE A, #0AH, $ + 3
-  137:	  007D	50 4E		    JNC CHECK_OPERATOR
-  138:	  007F	E5 44		    MOV A, MODE
-  139:	  0081	B4 02 07	    CJNE A, #02H, CHECK_DIGIT_LOCK
-  140:	  0084	E5 30		    MOV A, DIGIT_TMP
-  141:	  0086	B4 02 00	    CJNE A, #02H, $ + 3
-  142:	  0089	50 2A		    JNC IGNORE_BINARY_DIGIT
-  143:	  008B			CHECK_DIGIT_LOCK:
-  144:	  008B	BF 02 03	    CJNE R7, #02H, DIGIT_NOT_LOCKED
-  145:	  008E	02 00 19	    LJMP CALC_LOOP
-  146:	  0091			DIGIT_NOT_LOCKED:
-  147:	  0091	30 03 03	    JNB 20H.3, DIGIT_ENTRY_READY
-  148:	  0094	12 02 AB	    LCALL START_NEW_ENTRY
-  149:	  0097			DIGIT_ENTRY_READY:
-  150:	  0097	E5 44		    MOV A, MODE
-  151:	  0099	B4 02 07	    CJNE A, #02H, STORE_DECIMAL_DIGIT
-  152:	  009C	E5 30		    MOV A, DIGIT_TMP
-  153:	  009E	12 04 30	    LCALL ACCUMULATE_BINARY
-  154:	  00A1	80 05		    SJMP CHECK_DIGIT_RESULT
-  155:
+  100:	  002A			DO_BACKSPACE:
+  101:	  002A	E5 44			MOV A, MODE
+  102:	  002C	70 06			JNZ DO_ACTIVE_MODE_BACKSPACE
+  103:	  002E	12 02 8A		LCALL HANDLE_POWER_KEY
+  104:	  0031	02 00 1B		LJMP CALC_LOOP
+  105:	  0034			DO_ACTIVE_MODE_BACKSPACE:
+  106:	  0034	12 01 C6		LCALL HANDLE_BACKSPACE
+  107:	  0037	02 00 1B		LJMP CALC_LOOP
+  108:
+  109:	  003A			POWER_OFF_WAIT:
+  110:	  003A	20 A0 FD	    JB P2.0, POWER_OFF_WAIT      ; While off, only DEL is monitored
+  111:	  003D	12 02 8A	    LCALL HANDLE_POWER_KEY
+  112:	  0040	02 00 1B	    LJMP CALC_LOOP
+  113:
+  114:	  0043			PROCESS_KEY:
+  115:	  0043	C0 E0		    PUSH ACC
+  116:	  0045	12 04 A5	    LCALL WAIT_KEY_RELEASE
+  117:	  0048	D0 E0		    POP ACC
+  118:	  004A	F5 30		    MOV DIGIT_TMP, A
+  119:
+  120:	  004C	E5 44		    MOV A, MODE
+  121:	  004E	70 08		    JNZ ACTIVE_MODE_KEY
+  122:	  0050	E5 30		    MOV A, DIGIT_TMP
+  123:	  0052	12 03 11	    LCALL SELECT_MODE
+  124:	  0055	02 00 1B	    LJMP CALC_LOOP
+  125:
+  126:	  0058			ACTIVE_MODE_KEY:
+  127:	  0058	30 01 0D	    JNB 20H.1, CHECK_CLEAR_KEY
+  128:	  005B	C2 01		    CLR 20H.1
+  129:	  005D	E5 30		    MOV A, DIGIT_TMP
+  130:	  005F	B4 0F 06	    CJNE A, #0FH, CHECK_CLEAR_KEY
+  131:	  0062	12 03 06	    LCALL SHOW_MODE_MENU
+  132:	  0065	02 00 1B	    LJMP CALC_LOOP
+  133:
+  134:	  0068			CHECK_CLEAR_KEY:
+  135:	  0068	E5 44		    MOV A, MODE
+  136:	  006A	B4 02 18	    CJNE A, #02H, CHECK_ACTUAL_CLEAR
+  137:	  006D	E5 30		    MOV A, DIGIT_TMP
+  138:	  006F	B4 04 08	    CJNE A, #04H, CHECK_SCROLL_RIGHT
+  139:	  0072	74 E8		    MOV A, #EV_SCROLL_LEFT
+  140:	  0074	12 03 A7	    LCALL SEND_BYTE
+  141:	  0077	02 00 1B	    LJMP CALC_LOOP
+  142:	  007A			CHECK_SCROLL_RIGHT:
+  143:	  007A	B4 06 08	    CJNE A, #06H, CHECK_ACTUAL_CLEAR
+  144:	  007D	74 E9		    MOV A, #EV_SCROLL_RIGHT
+  145:	  007F	12 03 A7	    LCALL SEND_BYTE
+  146:	  0082	02 00 1B	    LJMP CALC_LOOP
+  147:	  0085			CHECK_ACTUAL_CLEAR:
+  148:	  0085	E5 30		    MOV A, DIGIT_TMP
+  149:	  0087	B4 0E 08	    CJNE A, #0EH, CHECK_DIGIT
+  150:	  008A	12 03 39	    LCALL CLEAR_CURRENT
+  151:	  008D	D2 01		    SETB 20H.1
+  152:	  008F	02 00 1B	    LJMP CALC_LOOP
+  153:
+  154:	  0092			CHECK_DIGIT:
+  155:	  0092	B4 0A 00	    CJNE A, #0AH, $ + 3
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 4
 
@@ -194,62 +194,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  156:	  00A3			STORE_DECIMAL_DIGIT:
-  157:	  00A3	E5 30		    MOV A, DIGIT_TMP
-  158:	  00A5	12 04 5D	    LCALL ACCUMULATE_DIGIT
-  159:	  00A8			CHECK_DIGIT_RESULT:
-  160:	  00A8	20 00 0D	    JB 20H.0, DIGIT_ERROR
-  161:	  00AB	D2 04		    SETB 20H.4
-  162:	  00AD	E5 30		    MOV A, DIGIT_TMP
-  163:	  00AF	12 03 0D	    LCALL SEND_BYTE
-  164:	  00B2	02 00 19	    LJMP CALC_LOOP
-  165:
-  166:	  00B5			IGNORE_BINARY_DIGIT:
-  167:	  00B5	02 00 19	    LJMP CALC_LOOP
-  168:	  00B8			DIGIT_ERROR:
-  169:	  00B8	E5 41		    MOV A, ERROR_CODE
-  170:	  00BA	B4 04 02	    CJNE A, #04H, CHECK_BIT_COUNT_ECHO
-  171:	  00BD	80 03		    SJMP ECHO_EXCEEDED_DIGIT
-  172:	  00BF			CHECK_BIT_COUNT_ECHO:
-  173:	  00BF	B4 08 05	    CJNE A, #08H, SEND_DIGIT_ERROR
-  174:	  00C2			ECHO_EXCEEDED_DIGIT:
-  175:	  00C2	E5 30		    MOV A, DIGIT_TMP
-  176:	  00C4	12 03 0D	    LCALL SEND_BYTE
-  177:	  00C7			SEND_DIGIT_ERROR:
-  178:	  00C7	12 03 25	    LCALL SEND_ERROR
-  179:	  00CA	02 00 19	    LJMP CALC_LOOP
-  180:
-  181:	  00CD			CHECK_OPERATOR:
-  182:	  00CD	E5 30		    MOV A, DIGIT_TMP
-  183:	  00CF	B4 0F 25	    CJNE A, #0FH, CHECK_MODE_OPERATOR
-  184:	  00D2	30 03 03	    JNB 20H.3, HASH_EXECUTE
-  185:	  00D5	02 00 19	    LJMP CALC_LOOP
-  186:
-  187:	  00D8			HASH_EXECUTE:
-  188:	  00D8	74 E7		    MOV A, #EV_EQUALS
-  189:	  00DA	12 03 0D	    LCALL SEND_BYTE
-  190:	  00DD	20 00 11	    JB 20H.0, EQUALS_SHOW_ERROR
-  191:	  00E0	75 41 00	    MOV ERROR_CODE, #00H
-  192:	  00E3	12 04 C3	    LCALL EXECUTE_MATH
-  193:	  00E6	20 00 08	    JB 20H.0, EQUALS_SHOW_ERROR
-  194:	  00E9	12 03 2F	    LCALL SEND_RESULT
-  195:	  00EC	D2 03		    SETB 20H.3
-  196:	  00EE	02 00 19	    LJMP CALC_LOOP
-  197:
-  198:	  00F1			EQUALS_SHOW_ERROR:
-  199:	  00F1	12 03 25	    LCALL SEND_ERROR
-  200:	  00F4	02 00 19	    LJMP CALC_LOOP
-  201:
-  202:	  00F7			CHECK_MODE_OPERATOR:
-  203:	  00F7	B4 0E 00	    CJNE A, #0EH, $ + 3
-  204:	  00FA	40 03		    JC MODE_OPERATOR_IN_RANGE
-  205:	  00FC	02 01 8A	    LJMP UNKNOWN_KEY
-  206:	  00FF			MODE_OPERATOR_IN_RANGE:
-  207:	  00FF	E5 44		    MOV A, MODE
-  208:	  0101	B4 03 19	    CJNE A, #03H, PREPARE_MODE_OPERATOR
-  209:	  0104	E5 30		    MOV A, DIGIT_TMP
-  210:	  0106	B4 0A 02	    CJNE A, #0AH, CHK_ADV_B
-  211:	  0109	80 12		    SJMP PREPARE_MODE_OPERATOR
+  156:	  0095	50 57		    JNC CHECK_OPERATOR
+  157:	  0097	E5 44		    MOV A, MODE
+  158:	  0099	B4 02 07	    CJNE A, #02H, CHECK_DIGIT_LOCK
+  159:	  009C	E5 30		    MOV A, DIGIT_TMP
+  160:	  009E	B4 02 00	    CJNE A, #02H, $ + 3
+  161:	  00A1	50 33		    JNC IGNORE_BINARY_DIGIT
+  162:	  00A3			CHECK_DIGIT_LOCK:
+  163:	  00A3	30 05 06	    JNB 20H.5, CHECK_UNARY_DIGIT_LOCK
+  164:	  00A6	BF 00 03	    CJNE R7, #00H, CHECK_UNARY_DIGIT_LOCK
+  165:	  00A9	02 00 1B	    LJMP CALC_LOOP               ; Do not append a number directly to ANS
+  166:	  00AC			CHECK_UNARY_DIGIT_LOCK:
+  167:	  00AC	BF 02 03	    CJNE R7, #02H, DIGIT_NOT_LOCKED
+  168:	  00AF	02 00 1B	    LJMP CALC_LOOP
+  169:	  00B2			DIGIT_NOT_LOCKED:
+  170:	  00B2	30 03 03	    JNB 20H.3, DIGIT_ENTRY_READY
+  171:	  00B5	12 03 41	    LCALL START_NEW_ENTRY
+  172:	  00B8			DIGIT_ENTRY_READY:
+  173:	  00B8	E5 44		    MOV A, MODE
+  174:	  00BA	B4 02 07	    CJNE A, #02H, STORE_DECIMAL_DIGIT
+  175:	  00BD	E5 30		    MOV A, DIGIT_TMP
+  176:	  00BF	12 04 BC	    LCALL ACCUMULATE_BINARY
+  177:	  00C2	80 05		    SJMP CHECK_DIGIT_RESULT
+  178:
+  179:	  00C4			STORE_DECIMAL_DIGIT:
+  180:	  00C4	E5 30		    MOV A, DIGIT_TMP
+  181:	  00C6	12 04 E9	    LCALL ACCUMULATE_DIGIT
+  182:	  00C9			CHECK_DIGIT_RESULT:
+  183:	  00C9	20 00 0D	    JB 20H.0, DIGIT_ERROR
+  184:	  00CC	D2 04		    SETB 20H.4
+  185:	  00CE	E5 30		    MOV A, DIGIT_TMP
+  186:	  00D0	12 03 A7	    LCALL SEND_BYTE
+  187:	  00D3	02 00 1B	    LJMP CALC_LOOP
+  188:
+  189:	  00D6			IGNORE_BINARY_DIGIT:
+  190:	  00D6	02 00 1B	    LJMP CALC_LOOP
+  191:	  00D9			DIGIT_ERROR:
+  192:	  00D9	E5 41		    MOV A, ERROR_CODE
+  193:	  00DB	B4 04 02	    CJNE A, #04H, CHECK_BIT_COUNT_ECHO
+  194:	  00DE	80 03		    SJMP ECHO_EXCEEDED_DIGIT
+  195:	  00E0			CHECK_BIT_COUNT_ECHO:
+  196:	  00E0	B4 08 05	    CJNE A, #08H, SEND_DIGIT_ERROR
+  197:	  00E3			ECHO_EXCEEDED_DIGIT:
+  198:	  00E3	E5 30		    MOV A, DIGIT_TMP
+  199:	  00E5	12 03 A7	    LCALL SEND_BYTE
+  200:	  00E8			SEND_DIGIT_ERROR:
+  201:	  00E8	12 03 BF	    LCALL SEND_ERROR
+  202:	  00EB	02 00 1B	    LJMP CALC_LOOP
+  203:
+  204:	  00EE			CHECK_OPERATOR:
+  205:	  00EE	E5 30		    MOV A, DIGIT_TMP
+  206:	  00F0	B4 0F 31	    CJNE A, #0FH, CHECK_MODE_OPERATOR
+  207:	  00F3	30 03 03	    JNB 20H.3, HASH_EXECUTE
+  208:	  00F6	02 00 1B	    LJMP CALC_LOOP
+  209:
+  210:	  00F9			HASH_EXECUTE:
+  211:	  00F9	EF		    MOV A, R7
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 5
 
@@ -257,62 +257,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  212:	  010B			CHK_ADV_B:
-  213:	  010B	B4 0B 02	    CJNE A, #0BH, CHK_ADV_C
-  214:	  010E	80 0D		    SJMP PREPARE_MODE_OPERATOR
-  215:	  0110			CHK_ADV_C:
-  216:	  0110	B4 0C 02	    CJNE A, #0CH, CHK_ADV_D
-  217:	  0113	80 08		    SJMP PREPARE_MODE_OPERATOR
-  218:	  0115			CHK_ADV_D:
-  219:	  0115	B4 0D 02	    CJNE A, #0DH, ADDITIONAL_UNKNOWN
-  220:	  0118	80 03		    SJMP PREPARE_MODE_OPERATOR
-  221:	  011A			ADDITIONAL_UNKNOWN:
-  222:	  011A	02 01 8A	    LJMP UNKNOWN_KEY
-  223:
-  224:	  011D			PREPARE_MODE_OPERATOR:
-  225:	  011D	12 02 CF	    LCALL PREPARE_OPERATOR_ENTRY
-  226:	  0120	30 00 03	    JNB 20H.0, DECODE_MODE_OPERATOR
-  227:	  0123	02 00 19	    LJMP CALC_LOOP
-  228:
-  229:	  0126			DECODE_MODE_OPERATOR:
-  230:	  0126	E5 44		    MOV A, MODE
-  231:	  0128	B4 01 0E	    CJNE A, #01H, CHECK_LOGIC_MODE
-  232:	  012B	E5 30		    MOV A, DIGIT_TMP
-  233:	  012D	C3		    CLR C
-  234:	  012E	94 09		    SUBB A, #09H
-  235:	  0130	FE		    MOV R6, A
-  236:	  0131	EE		    MOV A, R6
-  237:	  0132	24 BF		    ADD A, #EV_OP_BASE
-  238:	  0134	12 03 0D	    LCALL SEND_BYTE
-  239:	  0137	80 54		    SJMP NEXT_OPERAND
-  240:
-  241:	  0139			CHECK_LOGIC_MODE:
-  242:	  0139	B4 02 0E	    CJNE A, #02H, DECODE_ADV_MODE
-  243:	  013C	E5 30		    MOV A, DIGIT_TMP
-  244:	  013E	B4 0D 3D	    CJNE A, #0DH, LOGIC_BINARY_OPERATOR
-  245:	  0141	7E 08		    MOV R6, #08H
-  246:	  0143	74 C7		    MOV A, #EV_OP_NOT
-  247:	  0145	12 03 0D	    LCALL SEND_BYTE
-  248:	  0148	80 4A		    SJMP UNARY_PENDING
-  249:
-  250:	  014A			DECODE_ADV_MODE:
-  251:	  014A	E5 30		    MOV A, DIGIT_TMP
-  252:	  014C	B4 0A 09	    CJNE A, #0AH, ADV_CHK_B
-  253:				    ; Mode 3 Key A = Square
-  254:	  014F	7E 09		    MOV R6, #09H
-  255:	  0151	74 C8		    MOV A, #EV_OP_SQUARE
-  256:	  0153	12 03 0D	    LCALL SEND_BYTE
-  257:	  0156	80 3C		    SJMP UNARY_PENDING
-  258:	  0158			ADV_CHK_B:
-  259:	  0158	B4 0B 09	    CJNE A, #0BH, ADV_CHK_C
-  260:				    ; Mode 3 Key B = Power
-  261:	  015B	7E 0A		    MOV R6, #0AH
-  262:	  015D	74 C9		    MOV A, #EV_OP_POWER
-  263:	  015F	12 03 0D	    LCALL SEND_BYTE
-  264:	  0162	80 29		    SJMP NEXT_OPERAND
-  265:	  0164			ADV_CHK_C:
-  266:	  0164	B4 0C 09	    CJNE A, #0CH, ADV_CHK_D
-  267:				    ; Mode 3 Key C = Sqrt
+  212:	  00FA	B4 01 03	    CJNE A, #01H, HASH_OPERANDS_READY
+  213:	  00FD	30 04 21	    JNB 20H.4, HASH_IGNORE_INCOMPLETE
+  214:	  0100			HASH_OPERANDS_READY:
+  215:	  0100	74 E7		    MOV A, #EV_EQUALS
+  216:	  0102	12 03 A7	    LCALL SEND_BYTE
+  217:	  0105	D2 03		    SETB 20H.3                    ; Lock backspace immediately after '='
+  218:	  0107	D2 06		    SETB 20H.6
+  219:	  0109	20 00 0F	    JB 20H.0, EQUALS_SHOW_ERROR
+  220:	  010C	75 41 00	    MOV ERROR_CODE, #00H
+  221:	  010F	12 05 4F	    LCALL EXECUTE_MATH
+  222:	  0112	20 00 06	    JB 20H.0, EQUALS_SHOW_ERROR
+  223:	  0115	12 03 C9	    LCALL SEND_RESULT
+  224:	  0118	02 00 1B	    LJMP CALC_LOOP
+  225:
+  226:	  011B			EQUALS_SHOW_ERROR:
+  227:	  011B	12 03 BF	    LCALL SEND_ERROR
+  228:	  011E	02 00 1B	    LJMP CALC_LOOP
+  229:	  0121			HASH_IGNORE_INCOMPLETE:
+  230:	  0121	02 00 1B	    LJMP CALC_LOOP
+  231:
+  232:	  0124			CHECK_MODE_OPERATOR:
+  233:	  0124	B4 0E 00	    CJNE A, #0EH, $ + 3
+  234:	  0127	40 03		    JC MODE_OPERATOR_IN_RANGE
+  235:	  0129	02 01 B7	    LJMP UNKNOWN_KEY
+  236:	  012C			MODE_OPERATOR_IN_RANGE:
+  237:	  012C	E5 44		    MOV A, MODE
+  238:	  012E	B4 03 19	    CJNE A, #03H, PREPARE_MODE_OPERATOR
+  239:	  0131	E5 30		    MOV A, DIGIT_TMP
+  240:	  0133	B4 0A 02	    CJNE A, #0AH, CHK_ADV_B
+  241:	  0136	80 12		    SJMP PREPARE_MODE_OPERATOR
+  242:	  0138			CHK_ADV_B:
+  243:	  0138	B4 0B 02	    CJNE A, #0BH, CHK_ADV_C
+  244:	  013B	80 0D		    SJMP PREPARE_MODE_OPERATOR
+  245:	  013D			CHK_ADV_C:
+  246:	  013D	B4 0C 02	    CJNE A, #0CH, CHK_ADV_D
+  247:	  0140	80 08		    SJMP PREPARE_MODE_OPERATOR
+  248:	  0142			CHK_ADV_D:
+  249:	  0142	B4 0D 02	    CJNE A, #0DH, ADDITIONAL_UNKNOWN
+  250:	  0145	80 03		    SJMP PREPARE_MODE_OPERATOR
+  251:	  0147			ADDITIONAL_UNKNOWN:
+  252:	  0147	02 01 B7	    LJMP UNKNOWN_KEY
+  253:
+  254:	  014A			PREPARE_MODE_OPERATOR:
+  255:	  014A	12 03 69	    LCALL PREPARE_OPERATOR_ENTRY
+  256:	  014D	30 00 03	    JNB 20H.0, DECODE_MODE_OPERATOR
+  257:	  0150	02 00 1B	    LJMP CALC_LOOP
+  258:
+  259:	  0153			DECODE_MODE_OPERATOR:
+  260:	  0153	E5 44		    MOV A, MODE
+  261:	  0155	B4 01 0E	    CJNE A, #01H, CHECK_LOGIC_MODE
+  262:	  0158	E5 30		    MOV A, DIGIT_TMP
+  263:	  015A	C3		    CLR C
+  264:	  015B	94 09		    SUBB A, #09H
+  265:	  015D	FE		    MOV R6, A
+  266:	  015E	EE		    MOV A, R6
+  267:	  015F	24 BF		    ADD A, #EV_OP_BASE
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 6
 
@@ -320,62 +320,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  268:	  0167	7E 0B		    MOV R6, #0BH
-  269:	  0169	74 CA		    MOV A, #EV_OP_SQRT
-  270:	  016B	12 03 0D	    LCALL SEND_BYTE
-  271:	  016E	80 24		    SJMP UNARY_PENDING
-  272:	  0170			ADV_CHK_D:
-  273:	  0170	B4 0D A7	    CJNE A, #0DH, ADDITIONAL_UNKNOWN
-  274:				    ; Mode 3 Key D = Credits Easter Egg
-  275:	  0173	12 02 50	    LCALL RESET_STATE          ; Prevent ALU desync by dropping memory buffer
-  276:	  0176	74 CB		    MOV A, #EV_CREDITS
-  277:	  0178	12 03 0D	    LCALL SEND_BYTE
-  278:	  017B	02 00 19	    LJMP CALC_LOOP
+  268:	  0161	12 03 A7	    LCALL SEND_BYTE
+  269:	  0164	80 54		    SJMP NEXT_OPERAND
+  270:
+  271:	  0166			CHECK_LOGIC_MODE:
+  272:	  0166	B4 02 0E	    CJNE A, #02H, DECODE_ADV_MODE
+  273:	  0169	E5 30		    MOV A, DIGIT_TMP
+  274:	  016B	B4 0D 3D	    CJNE A, #0DH, LOGIC_BINARY_OPERATOR
+  275:	  016E	7E 08		    MOV R6, #08H
+  276:	  0170	74 C7		    MOV A, #EV_OP_NOT
+  277:	  0172	12 03 A7	    LCALL SEND_BYTE
+  278:	  0175	80 4A		    SJMP UNARY_PENDING
   279:
-  280:	  017E			LOGIC_BINARY_OPERATOR:
-  281:	  017E	C3		    CLR C
-  282:	  017F	94 05		    SUBB A, #05H
-  283:	  0181	FE		    MOV R6, A
-  284:	  0182	EE		    MOV A, R6
-  285:	  0183	24 BF		    ADD A, #EV_OP_BASE
-  286:	  0185	12 03 0D	    LCALL SEND_BYTE
-  287:	  0188	80 03		    SJMP NEXT_OPERAND
-  288:
-  289:	  018A			UNKNOWN_KEY:
-  290:	  018A	02 00 19	    LJMP CALC_LOOP
-  291:	  018D			NEXT_OPERAND:
-  292:	  018D	7F 01		    MOV R7, #01H
-  293:	  018F	C2 04		    CLR 20H.4
-  294:	  0191	02 00 19	    LJMP CALC_LOOP
-  295:	  0194			UNARY_PENDING:
-  296:	  0194	7F 02		    MOV R7, #02H
-  297:	  0196	02 00 19	    LJMP CALC_LOOP
-  298:
-  299:	  0199			HANDLE_BACKSPACE:
-  300:				    ; Wait for button release (debounce)
-  301:	  0199	30 A0 FD	    JNB P2.0, $
-  302:	  019C	12 04 27	    LCALL DEBOUNCE_DELAY
-  303:
-  304:				    ; --- CHECK UNARY OPERATOR LOCK (R7 = 2) ---
-  305:	  019F	EF		    MOV A, R7
-  306:	  01A0	B4 02 10	    CJNE A, #02H, CHECK_OP2_STATE
-  307:					; Backspace Unary Operator (SQRT or Square)
-  308:	  01A3	7E 00		    MOV R6, #00H                ; Clear active unary operator
-  309:	  01A5	7F 00		    MOV R7, #00H                ; Return to OP1 mode
-  310:					; Preserve digit acceptance flag if OP1 (R2:R3) holds a value
-  311:	  01A7	EA		    MOV A, R2
-  312:	  01A8	4B		    ORL A, R3
-  313:	  01A9	60 04		    JZ UNARY_BS_NO_DIGIT
-  314:	  01AB	D2 04		    SETB 20H.4
-  315:	  01AD	80 60		    SJMP SEND_BACKSPACE_EVENT
-  316:
-  317:	  01AF			UNARY_BS_NO_DIGIT:
-  318:	  01AF	C2 04		    CLR 20H.4
-  319:	  01B1	80 5C		    SJMP SEND_BACKSPACE_EVENT
-  320:
-  321:	  01B3			CHECK_OP2_STATE:
-  322:	  01B3	BF 01 34	    CJNE R7, #01H, BACKSPACE_OP1_CHECK
-  323:
+  280:	  0177			DECODE_ADV_MODE:
+  281:	  0177	E5 30		    MOV A, DIGIT_TMP
+  282:	  0179	B4 0A 09	    CJNE A, #0AH, ADV_CHK_B
+  283:				    ; Mode 3 Key A = Square
+  284:	  017C	7E 09		    MOV R6, #09H
+  285:	  017E	74 C8		    MOV A, #EV_OP_SQUARE
+  286:	  0180	12 03 A7	    LCALL SEND_BYTE
+  287:	  0183	80 3C		    SJMP UNARY_PENDING
+  288:	  0185			ADV_CHK_B:
+  289:	  0185	B4 0B 09	    CJNE A, #0BH, ADV_CHK_C
+  290:				    ; Mode 3 Key B = Power
+  291:	  0188	7E 0A		    MOV R6, #0AH
+  292:	  018A	74 C9		    MOV A, #EV_OP_POWER
+  293:	  018C	12 03 A7	    LCALL SEND_BYTE
+  294:	  018F	80 29		    SJMP NEXT_OPERAND
+  295:	  0191			ADV_CHK_C:
+  296:	  0191	B4 0C 09	    CJNE A, #0CH, ADV_CHK_D
+  297:				    ; Mode 3 Key C = Sqrt
+  298:	  0194	7E 0B		    MOV R6, #0BH
+  299:	  0196	74 CA		    MOV A, #EV_OP_SQRT
+  300:	  0198	12 03 A7	    LCALL SEND_BYTE
+  301:	  019B	80 24		    SJMP UNARY_PENDING
+  302:	  019D			ADV_CHK_D:
+  303:	  019D	B4 0D A7	    CJNE A, #0DH, ADDITIONAL_UNKNOWN
+  304:				    ; Mode 3 Key D = Credits Easter Egg
+  305:	  01A0	12 02 E2	    LCALL RESET_STATE          ; Prevent ALU desync by dropping memory buffer
+  306:	  01A3	74 CB		    MOV A, #EV_CREDITS
+  307:	  01A5	12 03 A7	    LCALL SEND_BYTE
+  308:	  01A8	02 00 1B	    LJMP CALC_LOOP
+  309:
+  310:	  01AB			LOGIC_BINARY_OPERATOR:
+  311:	  01AB	C3		    CLR C
+  312:	  01AC	94 05		    SUBB A, #05H
+  313:	  01AE	FE		    MOV R6, A
+  314:	  01AF	EE		    MOV A, R6
+  315:	  01B0	24 BF		    ADD A, #EV_OP_BASE
+  316:	  01B2	12 03 A7	    LCALL SEND_BYTE
+  317:	  01B5	80 03		    SJMP NEXT_OPERAND
+  318:
+  319:	  01B7			UNKNOWN_KEY:
+  320:	  01B7	02 00 1B	    LJMP CALC_LOOP
+  321:	  01BA			NEXT_OPERAND:
+  322:	  01BA	7F 01		    MOV R7, #01H
+  323:	  01BC	C2 04		    CLR 20H.4
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 7
 
@@ -383,61 +383,61 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  324:				    ; --- BACKSPACE OP2 ---
-  325:	  01B6	E5 44		    MOV A, MODE
-  326:	  01B8	B4 02 0C	    CJNE A, #02H, OP2_DECIMAL_BS
-  327:
-  328:				    ; OP2 Binary Backspace (Mode 2)
-  329:	  01BB	E5 46		    MOV A, OP2_BITS
-  330:	  01BD	60 1B		    JZ BACKSPACE_OPERATOR       ; 0 bits left -> erase operator instead
-  331:	  01BF	15 46		    DEC OP2_BITS
-  332:	  01C1	C3		    CLR C
-  333:	  01C2	ED		    MOV A, R5
-  334:	  01C3	13		    RRC A
-  335:	  01C4	FD		    MOV R5, A
-  336:	  01C5	80 48		    SJMP SEND_BACKSPACE_EVENT
-  337:
-  338:	  01C7			OP2_DECIMAL_BS:
-  339:	  01C7	8C 31		    MOV TMP_H, R4
-  340:	  01C9	8D 32		    MOV TMP_L, R5
-  341:	  01CB	E5 31		    MOV A, TMP_H
-  342:	  01CD	45 32		    ORL A, TMP_L
-  343:	  01CF	60 09		    JZ BACKSPACE_OPERATOR
-  344:	  01D1	12 02 15	    LCALL DIV_TMP_BY_10
-  345:	  01D4	AC 31		    MOV R4, TMP_H
-  346:	  01D6	AD 32		    MOV R5, TMP_L
-  347:	  01D8	80 35		    SJMP SEND_BACKSPACE_EVENT
-  348:
-  349:	  01DA			BACKSPACE_OPERATOR:
-  350:	  01DA	7E 00		    MOV R6, #00H
-  351:	  01DC	7F 00		    MOV R7, #00H
-  352:					; Maintain digit flag if OP1 holds a value
-  353:	  01DE	EA		    MOV A, R2
-  354:	  01DF	4B		    ORL A, R3
-  355:	  01E0	60 04		    JZ OP_BS_NO_DIGIT
-  356:	  01E2	D2 04		    SETB 20H.4
-  357:	  01E4	80 29		    SJMP SEND_BACKSPACE_EVENT
-  358:
-  359:	  01E6			OP_BS_NO_DIGIT:
-  360:	  01E6	C2 04		    CLR 20H.4
-  361:	  01E8	80 25		    SJMP SEND_BACKSPACE_EVENT
-  362:
-  363:	  01EA			BACKSPACE_OP1_CHECK:
-  364:	  01EA	BF 00 27	    CJNE R7, #00H, BACKSPACE_DONE
-  365:
-  366:				    ; --- BACKSPACE OP1 ---
-  367:	  01ED	E5 44		    MOV A, MODE
-  368:	  01EF	B4 02 0C	    CJNE A, #02H, OP1_DECIMAL_BS
-  369:
-  370:				    ; OP1 Binary Backspace (Mode 2)
-  371:	  01F2	E5 45		    MOV A, OP1_BITS
-  372:	  01F4	60 1E		    JZ BACKSPACE_DONE           ; 0 bits left -> nothing to erase
-  373:	  01F6	15 45		    DEC OP1_BITS
-  374:	  01F8	C3		    CLR C
-  375:	  01F9	EB		    MOV A, R3
-  376:	  01FA	13		    RRC A
-  377:	  01FB	FB		    MOV R3, A
-  378:	  01FC	80 11		    SJMP SEND_BACKSPACE_EVENT
+  324:	  01BE	02 00 1B	    LJMP CALC_LOOP
+  325:	  01C1			UNARY_PENDING:
+  326:	  01C1	7F 02		    MOV R7, #02H
+  327:	  01C3	02 00 1B	    LJMP CALC_LOOP
+  328:
+  329:	  01C6			HANDLE_BACKSPACE:
+  330:				    ; Wait for button release (debounce)
+  331:	  01C6	30 A0 FD	    JNB P2.0, $
+  332:	  01C9	12 04 B3	    LCALL DEBOUNCE_DELAY
+  333:
+  334:				    ; The completed equation is read-only until a new entry begins.
+  335:	  01CC	30 06 06	    JNB 20H.6, BACKSPACE_ALLOWED
+  336:	  01CF	12 03 39	    LCALL CLEAR_CURRENT           ; After '=', backspace behaves as Clear
+  337:	  01D2	D2 01		    SETB 20H.1                    ; Preserve the normal Clear/menu sequence
+  338:	  01D4	22		    RET
+  339:	  01D5			BACKSPACE_ALLOWED:
+  340:
+  341:				    ; --- CHECK UNARY OPERATOR LOCK (R7 = 2) ---
+  342:	  01D5	EF		    MOV A, R7
+  343:	  01D6	B4 02 12	    CJNE A, #02H, CHECK_OP2_STATE
+  344:					; Backspace Unary Operator (SQRT or Square)
+  345:	  01D9	7E 00		    MOV R6, #00H                ; Clear active unary operator
+  346:	  01DB	7F 00		    MOV R7, #00H                ; Return to OP1 mode
+  347:					; Preserve digit acceptance flag if OP1 (R2:R3) holds a value
+  348:	  01DD	EA		    MOV A, R2
+  349:	  01DE	4B		    ORL A, R3
+  350:	  01DF	60 05		    JZ UNARY_BS_NO_DIGIT
+  351:	  01E1	D2 04		    SETB 20H.4
+  352:	  01E3	02 02 84	    LJMP SEND_BACKSPACE_REMOVE_OPERATOR
+  353:
+  354:	  01E6			UNARY_BS_NO_DIGIT:
+  355:	  01E6	C2 04		    CLR 20H.4
+  356:	  01E8	02 02 84	    LJMP SEND_BACKSPACE_REMOVE_OPERATOR
+  357:
+  358:	  01EB			CHECK_OP2_STATE:
+  359:	  01EB	BF 01 46	    CJNE R7, #01H, BACKSPACE_OP1_CHECK
+  360:
+  361:				    ; --- BACKSPACE OP2 ---
+  362:	  01EE	E5 44		    MOV A, MODE
+  363:	  01F0	B4 02 15	    CJNE A, #02H, OP2_DECIMAL_BS
+  364:
+  365:				    ; OP2 Binary Backspace (Mode 2)
+  366:	  01F3	E5 46		    MOV A, OP2_BITS
+  367:	  01F5	60 2D		    JZ BACKSPACE_OPERATOR       ; 0 bits left -> erase operator instead
+  368:	  01F7	15 46		    DEC OP2_BITS
+  369:	  01F9	C3		    CLR C
+  370:	  01FA	ED		    MOV A, R5
+  371:	  01FB	13		    RRC A
+  372:	  01FC	FD		    MOV R5, A
+  373:	  01FD	E5 46		    MOV A, OP2_BITS
+  374:	  01FF	70 05		    JNZ OP2_BINARY_BS_SEND
+  375:	  0201	C2 04		    CLR 20H.4
+  376:	  0203	02 02 7D	    LJMP SEND_BACKSPACE_SHOW_OPERATOR
+  377:	  0206			OP2_BINARY_BS_SEND:
+  378:	  0206	80 6E		    SJMP SEND_BACKSPACE_EVENT
   379:
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 8
@@ -446,62 +446,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  380:	  01FE			OP1_DECIMAL_BS:
-  381:	  01FE	8A 31		    MOV TMP_H, R2
-  382:	  0200	8B 32		    MOV TMP_L, R3
-  383:	  0202	E5 31		    MOV A, TMP_H
-  384:	  0204	45 32		    ORL A, TMP_L
-  385:	  0206	60 0C		    JZ BACKSPACE_DONE
-  386:	  0208	12 02 15	    LCALL DIV_TMP_BY_10
-  387:	  020B	AA 31		    MOV R2, TMP_H
-  388:	  020D	AB 32		    MOV R3, TMP_L
-  389:
-  390:	  020F			SEND_BACKSPACE_EVENT:
-  391:	  020F	74 EA		    MOV A, #EV_BACKSPACE
-  392:	  0211	12 03 0D	    LCALL SEND_BYTE
-  393:
-  394:	  0214			BACKSPACE_DONE:
-  395:	  0214	22		    RET
+  380:	  0208			OP2_DECIMAL_BS:
+  381:	  0208	8C 31		    MOV TMP_H, R4
+  382:	  020A	8D 32		    MOV TMP_L, R5
+  383:	  020C	E5 31		    MOV A, TMP_H
+  384:	  020E	45 32		    ORL A, TMP_L
+  385:	  0210	60 12		    JZ BACKSPACE_OPERATOR
+  386:	  0212	12 02 A7	    LCALL DIV_TMP_BY_10
+  387:	  0215	AC 31		    MOV R4, TMP_H
+  388:	  0217	AD 32		    MOV R5, TMP_L
+  389:	  0219	EC		    MOV A, R4
+  390:	  021A	4D		    ORL A, R5
+  391:	  021B	70 05		    JNZ OP2_DECIMAL_BS_SEND
+  392:	  021D	C2 04		    CLR 20H.4
+  393:	  021F	02 02 7D	    LJMP SEND_BACKSPACE_SHOW_OPERATOR
+  394:	  0222			OP2_DECIMAL_BS_SEND:
+  395:	  0222	80 52		    SJMP SEND_BACKSPACE_EVENT
   396:
-  397:				; =========================================================
-  398:				; HELPER: Divide 16-bit value (TMP_H:TMP_L) by 10
-  399:				; Returns quotient in TMP_H:TMP_L (drops the last digit)
-  400:				; =========================================================
-  401:	  0215			DIV_TMP_BY_10:
-  402:	  0215	75 33 00	    MOV QUO_H, #00H
-  403:	  0218	75 34 00	    MOV QUO_L, #00H
-  404:	  021B	75 36 00	    MOV REM_L, #00H
-  405:	  021E	79 10		    MOV R1, #16
-  406:	  0220			DIV10_BS_LOOP:
-  407:	  0220	C3		    CLR C
-  408:	  0221	E5 32		    MOV A, TMP_L
-  409:	  0223	33		    RLC A
-  410:	  0224	F5 32		    MOV TMP_L, A
-  411:	  0226	E5 31		    MOV A, TMP_H
-  412:	  0228	33		    RLC A
-  413:	  0229	F5 31		    MOV TMP_H, A
-  414:	  022B	E5 36		    MOV A, REM_L
-  415:	  022D	33		    RLC A
-  416:	  022E	F5 36		    MOV REM_L, A
-  417:	  0230	C3		    CLR C
-  418:	  0231	E5 34		    MOV A, QUO_L
-  419:	  0233	33		    RLC A
-  420:	  0234	F5 34		    MOV QUO_L, A
-  421:	  0236	E5 33		    MOV A, QUO_H
-  422:	  0238	33		    RLC A
-  423:	  0239	F5 33		    MOV QUO_H, A
-  424:	  023B	E5 36		    MOV A, REM_L
-  425:	  023D	C3		    CLR C
-  426:	  023E	94 0A		    SUBB A, #10
-  427:	  0240	40 05		    JC DIV10_BS_LESS
-  428:	  0242	F5 36		    MOV REM_L, A
-  429:	  0244	43 34 01	    ORL QUO_L, #01H
-  430:	  0247			DIV10_BS_LESS:
-  431:	  0247	D9 D7		    DJNZ R1, DIV10_BS_LOOP
-  432:	  0249	85 33 31	    MOV TMP_H, QUO_H
-  433:	  024C	85 34 32	    MOV TMP_L, QUO_L
-  434:	  024F	22		    RET
-  435:
+  397:	  0224			BACKSPACE_OPERATOR:
+  398:	  0224	7E 00		    MOV R6, #00H
+  399:	  0226	7F 00		    MOV R7, #00H
+  400:					; Maintain digit flag if OP1 holds a value
+  401:	  0228	EA		    MOV A, R2
+  402:	  0229	4B		    ORL A, R3
+  403:	  022A	60 04		    JZ OP_BS_NO_DIGIT
+  404:	  022C	D2 04		    SETB 20H.4
+  405:	  022E	80 54			SJMP SEND_BACKSPACE_REMOVE_OPERATOR
+  406:
+  407:	  0230			OP_BS_NO_DIGIT:
+  408:	  0230	C2 04		    CLR 20H.4
+  409:	  0232	80 50			SJMP SEND_BACKSPACE_REMOVE_OPERATOR
+  410:
+  411:	  0234			BACKSPACE_OP1_CHECK:
+  412:	  0234	BF 00 52	    CJNE R7, #00H, BACKSPACE_DONE
+  413:	  0237	20 05 24	    JB 20H.5, BACKSPACE_ANS_TOKEN
+  414:
+  415:				    ; --- BACKSPACE OP1 ---
+  416:	  023A	E5 44		    MOV A, MODE
+  417:	  023C	B4 02 0C	    CJNE A, #02H, OP1_DECIMAL_BS
+  418:
+  419:				    ; OP1 Binary Backspace (Mode 2)
+  420:	  023F	E5 45		    MOV A, OP1_BITS
+  421:	  0241	60 46		    JZ BACKSPACE_DONE           ; 0 bits left -> nothing to erase
+  422:	  0243	15 45		    DEC OP1_BITS
+  423:	  0245	C3		    CLR C
+  424:	  0246	EB		    MOV A, R3
+  425:	  0247	13		    RRC A
+  426:	  0248	FB		    MOV R3, A
+  427:	  0249	80 2B		    SJMP SEND_BACKSPACE_EVENT
+  428:
+  429:	  024B			OP1_DECIMAL_BS:
+  430:	  024B	8A 31		    MOV TMP_H, R2
+  431:	  024D	8B 32		    MOV TMP_L, R3
+  432:	  024F	E5 31		    MOV A, TMP_H
+  433:	  0251	45 32		    ORL A, TMP_L
+  434:	  0253	60 34		    JZ BACKSPACE_DONE
+  435:	  0255	12 02 A7	    LCALL DIV_TMP_BY_10
 
 ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 9
 
@@ -509,62 +509,62 @@ ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. 
 
  Line  I  Addr  Code            Source
 
-  436:				; ================================
-  437:				; STATE, MODES, AND DISPLAY EVENTS
-  438:				; ================================
-  439:	  0250			RESET_STATE:
-  440:	  0250	7A 00		    MOV R2, #00H
-  441:	  0252	7B 00		    MOV R3, #00H
-  442:	  0254	7C 00		    MOV R4, #00H
-  443:	  0256	7D 00		    MOV R5, #00H
-  444:	  0258	7E 00		    MOV R6, #00H
-  445:	  025A	7F 00		    MOV R7, #00H
-  446:	  025C	75 41 00	    MOV ERROR_CODE, #00H
-  447:	  025F	75 45 00	    MOV OP1_BITS, #00H
-  448:	  0262	75 46 00	    MOV OP2_BITS, #00H
-  449:	  0265	C2 00		    CLR 20H.0
-  450:	  0267	C2 01		    CLR 20H.1
-  451:	  0269	C2 02		    CLR 20H.2
-  452:	  026B	C2 03		    CLR 20H.3
-  453:	  026D	C2 04		    CLR 20H.4
-  454:	  026F	22		    RET
-  455:
-  456:	  0270			SHOW_MODE_MENU:
-  457:	  0270	75 44 00	    MOV MODE, #00H
-  458:	  0273	12 02 50	    LCALL RESET_STATE
-  459:	  0276	74 E5		    MOV A, #EV_MENU
-  460:	  0278	02 03 0D	    LJMP SEND_BYTE
-  461:
-  462:	  027B			SELECT_MODE:
-  463:	  027B	B4 01 08	    CJNE A, #01H, SELECT_MODE_2
-  464:	  027E	75 44 01	    MOV MODE, #01H
-  465:	  0281	75 30 E1	    MOV DIGIT_TMP, #EV_MODE_AR
-  466:	  0284	80 14		    SJMP MODE_SELECTED
-  467:	  0286			SELECT_MODE_2:
-  468:	  0286	B4 02 08	    CJNE A, #02H, SELECT_MODE_3
-  469:	  0289	75 44 02	    MOV MODE, #02H
-  470:	  028C	75 30 E2	    MOV DIGIT_TMP, #EV_MODE_LOG
-  471:	  028F	80 09		    SJMP MODE_SELECTED
-  472:	  0291			SELECT_MODE_3:
-  473:	  0291	B4 03 0E	    CJNE A, #03H, SELECT_MODE_DONE
-  474:	  0294	75 44 03	    MOV MODE, #03H
-  475:	  0297	75 30 E3	    MOV DIGIT_TMP, #EV_MODE_ADV
-  476:	  029A			MODE_SELECTED:
-  477:	  029A	12 02 50	    LCALL RESET_STATE
-  478:	  029D	E5 30		    MOV A, DIGIT_TMP
-  479:	  029F	02 03 0D	    LJMP SEND_BYTE
-  480:	  02A2			SELECT_MODE_DONE:
-  481:	  02A2	22		    RET
-  482:
-  483:	  02A3			CLEAR_CURRENT:
-  484:	  02A3	12 02 50	    LCALL RESET_STATE
-  485:	  02A6	74 E4		    MOV A, #EV_CLEAR
-  486:	  02A8	02 03 0D	    LJMP SEND_BYTE
-  487:
-  488:	  02AB			START_NEW_ENTRY:
-  489:	  02AB	02 02 A3	    LJMP CLEAR_CURRENT
-  490:
-  491:	  02AE			PREPARE_ANS_EXPRESSION:
+  436:	  0258	AA 31		    MOV R2, TMP_H
+  437:	  025A	AB 32		    MOV R3, TMP_L
+  438:
+  439:	  025C	80 18		    SJMP SEND_BACKSPACE_EVENT
+  440:
+  441:	  025E			BACKSPACE_ANS_TOKEN:
+  442:				    ; ANS is one operand, so request one atomic token deletion.
+  443:	  025E	C2 05		    CLR 20H.5
+  444:	  0260	C2 02		    CLR 20H.2
+  445:	  0262	C2 04		    CLR 20H.4
+  446:	  0264	7A 00		    MOV R2, #00H
+  447:	  0266	7B 00		    MOV R3, #00H
+  448:	  0268	75 35 00	    MOV REM_H, #00H
+  449:	  026B	75 36 00	    MOV REM_L, #00H
+  450:	  026E	75 45 00	    MOV OP1_BITS, #00H
+  451:	  0271	74 EB		    MOV A, #EV_BACKSPACE_ANS
+  452:	  0273	02 03 A7	    LJMP SEND_BYTE
+  453:
+  454:	  0276			SEND_BACKSPACE_EVENT:
+  455:	  0276	74 EA		    MOV A, #EV_BACKSPACE
+  456:	  0278	12 03 A7	    LCALL SEND_BYTE
+  457:	  027B	80 0C		    SJMP BACKSPACE_DONE
+  458:
+  459:	  027D			SEND_BACKSPACE_SHOW_OPERATOR:
+  460:	  027D	74 ED		    MOV A, #EV_BS_SHOW_OP
+  461:	  027F	12 03 A7	    LCALL SEND_BYTE
+  462:	  0282	80 05		    SJMP BACKSPACE_DONE
+  463:
+  464:	  0284			SEND_BACKSPACE_REMOVE_OPERATOR:
+  465:	  0284	74 EE		    MOV A, #EV_BS_REMOVE_OP
+  466:	  0286	12 03 A7	    LCALL SEND_BYTE
+  467:
+  468:	  0289			BACKSPACE_DONE:
+  469:	  0289	22		    RET
+  470:
+  471:	  028A			HANDLE_POWER_KEY:
+  472:				    ; Debounce DEL before toggling the mode-menu power state.
+  473:	  028A	30 A0 FD	    JNB P2.0, $
+  474:	  028D	12 04 B3	    LCALL DEBOUNCE_DELAY
+  475:	  0290	20 07 07	    JB 20H.7, POWER_ON_RESTART
+  476:	  0293			POWER_OFF:
+  477:	  0293	D2 07		    SETB 20H.7
+  478:	  0295	74 EC		    MOV A, #EV_POWER_OFF
+  479:	  0297	02 03 A7	    LJMP SEND_BYTE
+  480:	  029A			POWER_ON_RESTART:
+  481:	  029A	C2 07		    CLR 20H.7
+  482:	  029C	75 44 00	    MOV MODE, #00H
+  483:	  029F	12 02 E2	    LCALL RESET_STATE
+  484:	  02A2	74 E0		    MOV A, #EV_STARTUP
+  485:	  02A4	02 03 A7	    LJMP SEND_BYTE
+  486:
+  487:				; =========================================================
+  488:				; HELPER: Divide 16-bit value (TMP_H:TMP_L) by 10
+  489:				; Returns quotient in TMP_H:TMP_L (drops the last digit)
+  490:				; =========================================================
+  491:	  02A7			DIV_TMP_BY_10:
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 10
 
@@ -572,62 +572,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  492:	  02AE	30 03 1D	    JNB 20H.3, PREPARE_ANS_DONE
-  493:	  02B1	7C 00		    MOV R4, #00H
-  494:	  02B3	7D 00		    MOV R5, #00H
-  495:	  02B5	7E 00		    MOV R6, #00H
-  496:	  02B7	7F 00		    MOV R7, #00H
-  497:	  02B9	75 35 00		MOV REM_H, #00H
-  498:	  02BC	75 36 00		MOV REM_L, #00H
-  499:	  02BF	75 41 00	    MOV ERROR_CODE, #00H
-  500:	  02C2	75 46 00	    MOV OP2_BITS, #00H
-  501:	  02C5	C2 00		    CLR 20H.0
-  502:	  02C7	C2 03		    CLR 20H.3
-  503:	  02C9	74 E6		    MOV A, #EV_ANS
-  504:	  02CB	12 03 0D	    LCALL SEND_BYTE
-  505:	  02CE			PREPARE_ANS_DONE:
-  506:	  02CE	22		    RET
-  507:
-  508:	  02CF			PREPARE_OPERATOR_ENTRY:
-  509:	  02CF	20 00 21	    JB 20H.0, PREPARE_OPERATOR_DONE
-  510:	  02D2	20 03 17	    JB 20H.3, PREPARE_OPERATOR_USE_ANS
-  511:	  02D5	BF 02 06	    CJNE R7, #02H, PREPARE_OPERATOR_CHECK_BINARY
-  512:	  02D8	EE		    MOV A, R6
-  513:	  02D9	B4 08 08	    CJNE A, #08H, PREPARE_OPERATOR_EXECUTE_CHAIN
-  514:	  02DC	80 15		    SJMP PREPARE_OPERATOR_DONE
-  515:	  02DE			PREPARE_OPERATOR_CHECK_BINARY:
-  516:	  02DE	BF 01 12	    CJNE R7, #01H, PREPARE_OPERATOR_DONE
-  517:	  02E1	30 04 0F	    JNB 20H.4, PREPARE_OPERATOR_DONE
-  518:	  02E4			PREPARE_OPERATOR_EXECUTE_CHAIN:
-  519:	  02E4	12 04 C3	    LCALL EXECUTE_MATH
-  520:	  02E7	20 00 06	    JB 20H.0, PREPARE_OPERATOR_ERROR
-  521:	  02EA	D2 03		    SETB 20H.3
-  522:	  02EC			PREPARE_OPERATOR_USE_ANS:
-  523:	  02EC	12 02 AE	    LCALL PREPARE_ANS_EXPRESSION
-  524:	  02EF	22		    RET
-  525:	  02F0			PREPARE_OPERATOR_ERROR:
-  526:	  02F0	12 03 25	    LCALL SEND_ERROR
-  527:	  02F3			PREPARE_OPERATOR_DONE:
-  528:	  02F3	22		    RET
-  529:
-  530:				; ============================================
-  531:				; HARDWARE UART TRANSFER TO DISPLAY CONTROLLER
-  532:				; ============================================
-  533:	  02F4			UART_INIT:
-  534:	  02F4	53 89 0F	    ANL TMOD, #0FH
-  535:	  02F7	43 89 20	    ORL TMOD, #020H
-  536:	  02FA	53 87 7F	    ANL PCON, #07FH
-  537:	  02FD	75 8D FD	    MOV TH1, #0FDH
-  538:	  0300	75 8B FD	    MOV TL1, #0FDH
-  539:	  0303	75 98 50	    MOV SCON, #050H
-  540:	  0306	C2 99		    CLR TI
-  541:	  0308	C2 98		    CLR RI
-  542:	  030A	D2 8E		    SETB TR1
-  543:	  030C	22		    RET
-  544:
-  545:	  030D			SEND_BYTE:
-  546:	  030D	F5 47		    MOV TX_BYTE, A
-  547:	  030F	C2 99		    CLR TI
+  492:	  02A7	75 33 00	    MOV QUO_H, #00H
+  493:	  02AA	75 34 00	    MOV QUO_L, #00H
+  494:	  02AD	75 36 00	    MOV REM_L, #00H
+  495:	  02B0	79 10		    MOV R1, #16
+  496:	  02B2			DIV10_BS_LOOP:
+  497:	  02B2	C3		    CLR C
+  498:	  02B3	E5 32		    MOV A, TMP_L
+  499:	  02B5	33		    RLC A
+  500:	  02B6	F5 32		    MOV TMP_L, A
+  501:	  02B8	E5 31		    MOV A, TMP_H
+  502:	  02BA	33		    RLC A
+  503:	  02BB	F5 31		    MOV TMP_H, A
+  504:	  02BD	E5 36		    MOV A, REM_L
+  505:	  02BF	33		    RLC A
+  506:	  02C0	F5 36		    MOV REM_L, A
+  507:	  02C2	C3		    CLR C
+  508:	  02C3	E5 34		    MOV A, QUO_L
+  509:	  02C5	33		    RLC A
+  510:	  02C6	F5 34		    MOV QUO_L, A
+  511:	  02C8	E5 33		    MOV A, QUO_H
+  512:	  02CA	33		    RLC A
+  513:	  02CB	F5 33		    MOV QUO_H, A
+  514:	  02CD	E5 36		    MOV A, REM_L
+  515:	  02CF	C3		    CLR C
+  516:	  02D0	94 0A		    SUBB A, #10
+  517:	  02D2	40 05		    JC DIV10_BS_LESS
+  518:	  02D4	F5 36		    MOV REM_L, A
+  519:	  02D6	43 34 01	    ORL QUO_L, #01H
+  520:	  02D9			DIV10_BS_LESS:
+  521:	  02D9	D9 D7		    DJNZ R1, DIV10_BS_LOOP
+  522:	  02DB	85 33 31	    MOV TMP_H, QUO_H
+  523:	  02DE	85 34 32	    MOV TMP_L, QUO_L
+  524:	  02E1	22		    RET
+  525:
+  526:				; ================================
+  527:				; STATE, MODES, AND DISPLAY EVENTS
+  528:				; ================================
+  529:	  02E2			RESET_STATE:
+  530:	  02E2	7A 00		    MOV R2, #00H
+  531:	  02E4	7B 00		    MOV R3, #00H
+  532:	  02E6	7C 00		    MOV R4, #00H
+  533:	  02E8	7D 00		    MOV R5, #00H
+  534:	  02EA	7E 00		    MOV R6, #00H
+  535:	  02EC	7F 00		    MOV R7, #00H
+  536:	  02EE	75 41 00	    MOV ERROR_CODE, #00H
+  537:	  02F1	75 45 00	    MOV OP1_BITS, #00H
+  538:	  02F4	75 46 00	    MOV OP2_BITS, #00H
+  539:	  02F7	C2 00		    CLR 20H.0
+  540:	  02F9	C2 01		    CLR 20H.1
+  541:	  02FB	C2 02		    CLR 20H.2
+  542:	  02FD	C2 03		    CLR 20H.3
+  543:	  02FF	C2 04		    CLR 20H.4
+  544:	  0301	C2 05		    CLR 20H.5
+  545:	  0303	C2 06		    CLR 20H.6
+  546:	  0305	22		    RET
+  547:
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 11
 
@@ -635,62 +635,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  548:	  0311	F5 99		    MOV SBUF, A
-  549:	  0313			SEND_WAIT_TX:
-  550:	  0313	30 99 FD	    JNB TI, SEND_WAIT_TX
-  551:	  0316	C2 99		    CLR TI
-  552:	  0318			SEND_WAIT_ACK:
-  553:	  0318	30 98 FD	    JNB RI, SEND_WAIT_ACK
-  554:	  031B	E5 99		    MOV A, SBUF
-  555:	  031D	C2 98		    CLR RI
-  556:	  031F	B4 06 F6	    CJNE A, #006H, SEND_WAIT_ACK
-  557:	  0322	E5 47		    MOV A, TX_BYTE
-  558:	  0324	22		    RET
-  559:
-  560:	  0325			SEND_ERROR:
-  561:	  0325	74 D2		    MOV A, #EV_ERROR
-  562:	  0327	12 03 0D	    LCALL SEND_BYTE
-  563:	  032A	E5 41		    MOV A, ERROR_CODE
-  564:	  032C	02 03 0D	    LJMP SEND_BYTE
-  565:
-  566:	  032F			SEND_RESULT:
-  567:	  032F	E5 44		    MOV A, MODE
-  568:	  0331	B4 02 09	    CJNE A, #02H, SEND_DECIMAL_RESULT
-  569:	  0334	74 D1		    MOV A, #EV_RESULT_BIN
-  570:	  0336	12 03 0D	    LCALL SEND_BYTE
-  571:	  0339	EB		    MOV A, R3
-  572:	  033A	02 03 0D	    LJMP SEND_BYTE
-  573:	  033D			SEND_DECIMAL_RESULT:
-  574:	  033D	EE		    MOV A, R6
-  575:	  033E	B4 04 2E	    CJNE A, #04H, SEND_PLAIN_DECIMAL
-  576:	  0341	E5 35		    MOV A, REM_H
-  577:	  0343	45 36		    ORL A, REM_L
-  578:	  0345	60 28		    JZ SEND_PLAIN_DECIMAL
-  579:	  0347	74 D3		    MOV A, #EV_RESULT_FRAC
-  580:	  0349	12 03 0D	    LCALL SEND_BYTE
-  581:	  034C	74 00		    MOV A, #00H
-  582:	  034E	30 02 01	    JNB 20H.2, SEND_FRACTION_SIGN
-  583:	  0351	04		    INC A
-  584:	  0352			SEND_FRACTION_SIGN:
-  585:	  0352	12 03 0D	    LCALL SEND_BYTE
-  586:	  0355	EA		    MOV A, R2
-  587:	  0356	12 03 0D	    LCALL SEND_BYTE
-  588:	  0359	EB		    MOV A, R3
-  589:	  035A	12 03 0D	    LCALL SEND_BYTE
-  590:	  035D	E5 35		    MOV A, REM_H
-  591:	  035F	12 03 0D	    LCALL SEND_BYTE
-  592:	  0362	E5 36		    MOV A, REM_L
-  593:	  0364	12 03 0D	    LCALL SEND_BYTE
-  594:	  0367	EC		    MOV A, R4
-  595:	  0368	12 03 0D	    LCALL SEND_BYTE
-  596:	  036B	ED		    MOV A, R5
-  597:	  036C	02 03 0D	    LJMP SEND_BYTE
-  598:	  036F			SEND_PLAIN_DECIMAL:
-  599:	  036F	74 D0		    MOV A, #EV_RESULT_DEC
-  600:	  0371	12 03 0D	    LCALL SEND_BYTE
-  601:	  0374	74 00		    MOV A, #00H
-  602:	  0376	30 02 01	    JNB 20H.2, SEND_RESULT_SIGN
-  603:	  0379	04		    INC A
+  548:	  0306			SHOW_MODE_MENU:
+  549:	  0306	75 44 00	    MOV MODE, #00H
+  550:	  0309	12 02 E2	    LCALL RESET_STATE
+  551:	  030C	74 E5		    MOV A, #EV_MENU
+  552:	  030E	02 03 A7	    LJMP SEND_BYTE
+  553:
+  554:	  0311			SELECT_MODE:
+  555:	  0311	B4 01 08	    CJNE A, #01H, SELECT_MODE_2
+  556:	  0314	75 44 01	    MOV MODE, #01H
+  557:	  0317	75 30 E1	    MOV DIGIT_TMP, #EV_MODE_AR
+  558:	  031A	80 14		    SJMP MODE_SELECTED
+  559:	  031C			SELECT_MODE_2:
+  560:	  031C	B4 02 08	    CJNE A, #02H, SELECT_MODE_3
+  561:	  031F	75 44 02	    MOV MODE, #02H
+  562:	  0322	75 30 E2	    MOV DIGIT_TMP, #EV_MODE_LOG
+  563:	  0325	80 09		    SJMP MODE_SELECTED
+  564:	  0327			SELECT_MODE_3:
+  565:	  0327	B4 03 0E	    CJNE A, #03H, SELECT_MODE_DONE
+  566:	  032A	75 44 03	    MOV MODE, #03H
+  567:	  032D	75 30 E3	    MOV DIGIT_TMP, #EV_MODE_ADV
+  568:	  0330			MODE_SELECTED:
+  569:	  0330	12 02 E2	    LCALL RESET_STATE
+  570:	  0333	E5 30		    MOV A, DIGIT_TMP
+  571:	  0335	02 03 A7	    LJMP SEND_BYTE
+  572:	  0338			SELECT_MODE_DONE:
+  573:	  0338	22		    RET
+  574:
+  575:	  0339			CLEAR_CURRENT:
+  576:	  0339	12 02 E2	    LCALL RESET_STATE
+  577:	  033C	74 E4		    MOV A, #EV_CLEAR
+  578:	  033E	02 03 A7	    LJMP SEND_BYTE
+  579:
+  580:	  0341			START_NEW_ENTRY:
+  581:	  0341	02 03 39	    LJMP CLEAR_CURRENT
+  582:
+  583:	  0344			PREPARE_ANS_EXPRESSION:
+  584:	  0344	30 03 21	    JNB 20H.3, PREPARE_ANS_DONE
+  585:	  0347	7C 00		    MOV R4, #00H
+  586:	  0349	7D 00		    MOV R5, #00H
+  587:	  034B	7E 00		    MOV R6, #00H
+  588:	  034D	7F 00		    MOV R7, #00H
+  589:	  034F	75 35 00		MOV REM_H, #00H
+  590:	  0352	75 36 00		MOV REM_L, #00H
+  591:	  0355	75 41 00	    MOV ERROR_CODE, #00H
+  592:	  0358	75 46 00	    MOV OP2_BITS, #00H
+  593:	  035B	C2 00		    CLR 20H.0
+  594:	  035D	C2 03		    CLR 20H.3
+  595:	  035F	C2 06		    CLR 20H.6                    ; A new ANS operation unlocks backspace
+  596:	  0361	D2 05		    SETB 20H.5                    ; Process and display now track ANS as a token
+  597:	  0363	74 E6		    MOV A, #EV_ANS
+  598:	  0365	12 03 A7	    LCALL SEND_BYTE
+  599:	  0368			PREPARE_ANS_DONE:
+  600:	  0368	22		    RET
+  601:
+  602:	  0369			PREPARE_OPERATOR_ENTRY:
+  603:	  0369	20 00 21	    JB 20H.0, PREPARE_OPERATOR_DONE
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 12
 
@@ -698,62 +698,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  604:	  037A			SEND_RESULT_SIGN:
-  605:	  037A	12 03 0D	    LCALL SEND_BYTE
-  606:	  037D	EA		    MOV A, R2
-  607:	  037E	12 03 0D	    LCALL SEND_BYTE
-  608:	  0381	EB		    MOV A, R3
-  609:	  0382	02 03 0D	    LJMP SEND_BYTE
-  610:
-  611:				; ==============================
-  612:				;  KEYPAD SCANNING AND DEBOUNCE
-  613:				; ==============================
-  614:	  0385			KEYPAD_SCAN:
-  615:	  0385	75 90 F0	    MOV P1, #0F0H
-  616:	  0388	E5 90		    MOV A, P1
-  617:	  038A	54 F0		    ANL A, #0F0H
-  618:	  038C	B4 F0 03	    CJNE A, #0F0H, KEY_FOUND
-  619:	  038F	74 FF		    MOV A, #0FFH
-  620:	  0391	22		    RET
-  621:	  0392			KEY_FOUND:
-  622:	  0392	12 04 27	    LCALL DEBOUNCE_DELAY
-  623:	  0395	75 90 F0	    MOV P1, #0F0H
-  624:	  0398	E5 90		    MOV A, P1
-  625:	  039A	54 F0		    ANL A, #0F0H
-  626:	  039C	B4 F0 03	    CJNE A, #0F0H, SCAN_ROW_0
-  627:	  039F	74 FF		    MOV A, #0FFH
-  628:	  03A1	22		    RET
-  629:	  03A2			SCAN_ROW_0:
-  630:	  03A2	75 90 FE	    MOV P1, #0FEH
-  631:	  03A5	E5 90		    MOV A, P1
-  632:	  03A7	30 E4 42	    JNB ACC.4, GOT_KEY_1
-  633:	  03AA	30 E5 42	    JNB ACC.5, GOT_KEY_2
-  634:	  03AD	30 E6 42	    JNB ACC.6, GOT_KEY_3
-  635:	  03B0	30 E7 54	    JNB ACC.7, GOT_KEY_A
-  636:	  03B3			SCAN_ROW_1:
-  637:	  03B3	75 90 FD	    MOV P1, #0FDH
-  638:	  03B6	E5 90		    MOV A, P1
-  639:	  03B8	30 E4 3A	    JNB ACC.4, GOT_KEY_4
-  640:	  03BB	30 E5 3A	    JNB ACC.5, GOT_KEY_5
-  641:	  03BE	30 E6 3A	    JNB ACC.6, GOT_KEY_6
-  642:	  03C1	30 E7 46	    JNB ACC.7, GOT_KEY_B
-  643:	  03C4			SCAN_ROW_2:
-  644:	  03C4	75 90 FB	    MOV P1, #0FBH
-  645:	  03C7	E5 90		    MOV A, P1
-  646:	  03C9	30 E4 32	    JNB ACC.4, GOT_KEY_7
-  647:	  03CC	30 E5 32	    JNB ACC.5, GOT_KEY_8
-  648:	  03CF	30 E6 32	    JNB ACC.6, GOT_KEY_9
-  649:	  03D2	30 E7 38	    JNB ACC.7, GOT_KEY_C
-  650:	  03D5			SCAN_ROW_3:
-  651:	  03D5	75 90 F7	    MOV P1, #0F7H
-  652:	  03D8	E5 90		    MOV A, P1
-  653:	  03DA	30 E4 36	    JNB ACC.4, GOT_KEY_STAR
-  654:	  03DD	30 E5 09	    JNB ACC.5, GOT_KEY_0
-  655:	  03E0	30 E6 33	    JNB ACC.6, GOT_KEY_HASH
-  656:	  03E3	30 E7 2A	    JNB ACC.7, GOT_KEY_D
-  657:	  03E6	74 FF		    MOV A, #0FFH
-  658:	  03E8	22		    RET
-  659:	  03E9	74 00		GOT_KEY_0:     MOV A, #00H
+  604:	  036C	20 03 17	    JB 20H.3, PREPARE_OPERATOR_USE_ANS
+  605:	  036F	BF 02 06	    CJNE R7, #02H, PREPARE_OPERATOR_CHECK_BINARY
+  606:	  0372	EE		    MOV A, R6
+  607:	  0373	B4 08 08	    CJNE A, #08H, PREPARE_OPERATOR_EXECUTE_CHAIN
+  608:	  0376	80 15		    SJMP PREPARE_OPERATOR_DONE
+  609:	  0378			PREPARE_OPERATOR_CHECK_BINARY:
+  610:	  0378	BF 01 12	    CJNE R7, #01H, PREPARE_OPERATOR_DONE
+  611:	  037B	30 04 0F	    JNB 20H.4, PREPARE_OPERATOR_DONE
+  612:	  037E			PREPARE_OPERATOR_EXECUTE_CHAIN:
+  613:	  037E	12 05 4F	    LCALL EXECUTE_MATH
+  614:	  0381	20 00 06	    JB 20H.0, PREPARE_OPERATOR_ERROR
+  615:	  0384	D2 03		    SETB 20H.3
+  616:	  0386			PREPARE_OPERATOR_USE_ANS:
+  617:	  0386	12 03 44	    LCALL PREPARE_ANS_EXPRESSION
+  618:	  0389	22		    RET
+  619:	  038A			PREPARE_OPERATOR_ERROR:
+  620:	  038A	12 03 BF	    LCALL SEND_ERROR
+  621:	  038D			PREPARE_OPERATOR_DONE:
+  622:	  038D	22		    RET
+  623:
+  624:				; ============================================
+  625:				; HARDWARE UART TRANSFER TO DISPLAY CONTROLLER
+  626:				; ============================================
+  627:	  038E			UART_INIT:
+  628:	  038E	53 89 0F	    ANL TMOD, #0FH
+  629:	  0391	43 89 20	    ORL TMOD, #020H
+  630:	  0394	53 87 7F	    ANL PCON, #07FH
+  631:	  0397	75 8D FD	    MOV TH1, #0FDH
+  632:	  039A	75 8B FD	    MOV TL1, #0FDH
+  633:	  039D	75 98 50	    MOV SCON, #050H
+  634:	  03A0	C2 99		    CLR TI
+  635:	  03A2	C2 98		    CLR RI
+  636:	  03A4	D2 8E		    SETB TR1
+  637:	  03A6	22		    RET
+  638:
+  639:	  03A7			SEND_BYTE:
+  640:	  03A7	F5 47		    MOV TX_BYTE, A
+  641:	  03A9	C2 99		    CLR TI
+  642:	  03AB	F5 99		    MOV SBUF, A
+  643:	  03AD			SEND_WAIT_TX:
+  644:	  03AD	30 99 FD	    JNB TI, SEND_WAIT_TX
+  645:	  03B0	C2 99		    CLR TI
+  646:	  03B2			SEND_WAIT_ACK:
+  647:	  03B2	30 98 FD	    JNB RI, SEND_WAIT_ACK
+  648:	  03B5	E5 99		    MOV A, SBUF
+  649:	  03B7	C2 98		    CLR RI
+  650:	  03B9	B4 06 F6	    CJNE A, #006H, SEND_WAIT_ACK
+  651:	  03BC	E5 47		    MOV A, TX_BYTE
+  652:	  03BE	22		    RET
+  653:
+  654:	  03BF			SEND_ERROR:
+  655:	  03BF	74 D2		    MOV A, #EV_ERROR
+  656:	  03C1	12 03 A7	    LCALL SEND_BYTE
+  657:	  03C4	E5 41		    MOV A, ERROR_CODE
+  658:	  03C6	02 03 A7	    LJMP SEND_BYTE
+  659:
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 13
 
@@ -761,62 +761,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  660:	  03EB	22		               RET
-  661:	  03EC	74 01		GOT_KEY_1:     MOV A, #01H
-  662:	  03EE	22		               RET
-  663:	  03EF	74 02		GOT_KEY_2:     MOV A, #02H
-  664:	  03F1	22		               RET
-  665:	  03F2	74 03		GOT_KEY_3:     MOV A, #03H
-  666:	  03F4	22		               RET
-  667:	  03F5	74 04		GOT_KEY_4:     MOV A, #04H
-  668:	  03F7	22		               RET
-  669:	  03F8	74 05		GOT_KEY_5:     MOV A, #05H
-  670:	  03FA	22		               RET
-  671:	  03FB	74 06		GOT_KEY_6:     MOV A, #06H
-  672:	  03FD	22		               RET
-  673:	  03FE	74 07		GOT_KEY_7:     MOV A, #07H
-  674:	  0400	22		               RET
-  675:	  0401	74 08		GOT_KEY_8:     MOV A, #08H
-  676:	  0403	22		               RET
-  677:	  0404	74 09		GOT_KEY_9:     MOV A, #09H
-  678:	  0406	22		               RET
-  679:	  0407	74 0A		GOT_KEY_A:     MOV A, #0AH
-  680:	  0409	22		               RET
-  681:	  040A	74 0B		GOT_KEY_B:     MOV A, #0BH
-  682:	  040C	22		               RET
-  683:	  040D	74 0C		GOT_KEY_C:     MOV A, #0CH
-  684:	  040F	22		               RET
-  685:	  0410	74 0D		GOT_KEY_D:     MOV A, #0DH
-  686:	  0412	22		               RET
-  687:	  0413	74 0E		GOT_KEY_STAR:  MOV A, #0EH
-  688:	  0415	22		               RET
-  689:	  0416	74 0F		GOT_KEY_HASH:  MOV A, #0FH
-  690:	  0418	22		               RET
-  691:
-  692:	  0419			WAIT_KEY_RELEASE:
-  693:	  0419	75 90 F0	    MOV P1, #0F0H
-  694:	  041C	E5 90		    MOV A, P1
-  695:	  041E	54 F0		    ANL A, #0F0H
-  696:	  0420	B4 F0 F6	    CJNE A, #0F0H, WAIT_KEY_RELEASE
-  697:	  0423	12 04 27	    LCALL DEBOUNCE_DELAY
-  698:	  0426	22		    RET
-  699:
-  700:	  0427			DEBOUNCE_DELAY:
-  701:	  0427	78 14		    MOV R0, #20
-  702:	  0429			DEBOUNCE_OUTER:
-  703:	  0429	79 FF		    MOV R1, #255
-  704:	  042B	D9 FE		    DJNZ R1, $
-  705:	  042D	D8 FA		    DJNZ R0, DEBOUNCE_OUTER
-  706:	  042F	22		    RET
-  707:
-  708:				; ==============================
-  709:				; ACCUMULATOR & INPUT FORMATTING
-  710:				; ==============================
-  711:	  0430			ACCUMULATE_BINARY:
-  712:	  0430	F5 30		    MOV DIGIT_TMP, A
-  713:	  0432	BF 00 11	    CJNE R7, #00H, BINARY_OP2
-  714:	  0435	E5 45		    MOV A, OP1_BITS
-  715:	  0437	B4 08 00	    CJNE A, #08H, $ + 3
+  660:	  03C9			SEND_RESULT:
+  661:	  03C9	E5 44		    MOV A, MODE
+  662:	  03CB	B4 02 09	    CJNE A, #02H, SEND_DECIMAL_RESULT
+  663:	  03CE	74 D1		    MOV A, #EV_RESULT_BIN
+  664:	  03D0	12 03 A7	    LCALL SEND_BYTE
+  665:	  03D3	EB		    MOV A, R3
+  666:	  03D4	02 03 A7	    LJMP SEND_BYTE
+  667:	  03D7			SEND_DECIMAL_RESULT:
+  668:	  03D7	EE		    MOV A, R6
+  669:	  03D8	B4 04 20	    CJNE A, #04H, SEND_PLAIN_DECIMAL
+  670:	  03DB	74 D3		    MOV A, #EV_RESULT_REM
+  671:	  03DD	12 03 A7	    LCALL SEND_BYTE
+  672:	  03E0	74 00		    MOV A, #00H
+  673:	  03E2	30 02 01	    JNB 20H.2, SEND_REMAINDER_SIGN
+  674:	  03E5	04		    INC A
+  675:	  03E6			SEND_REMAINDER_SIGN:
+  676:	  03E6	12 03 A7	    LCALL SEND_BYTE
+  677:	  03E9	EA		    MOV A, R2
+  678:	  03EA	12 03 A7	    LCALL SEND_BYTE
+  679:	  03ED	EB		    MOV A, R3
+  680:	  03EE	12 03 A7	    LCALL SEND_BYTE
+  681:	  03F1	E5 35		    MOV A, REM_H
+  682:	  03F3	12 03 A7	    LCALL SEND_BYTE
+  683:	  03F6	E5 36		    MOV A, REM_L
+  684:	  03F8	02 03 A7	    LJMP SEND_BYTE
+  685:	  03FB			SEND_PLAIN_DECIMAL:
+  686:	  03FB	74 D0		    MOV A, #EV_RESULT_DEC
+  687:	  03FD	12 03 A7	    LCALL SEND_BYTE
+  688:	  0400	74 00		    MOV A, #00H
+  689:	  0402	30 02 01	    JNB 20H.2, SEND_RESULT_SIGN
+  690:	  0405	04		    INC A
+  691:	  0406			SEND_RESULT_SIGN:
+  692:	  0406	12 03 A7	    LCALL SEND_BYTE
+  693:	  0409	EA		    MOV A, R2
+  694:	  040A	12 03 A7	    LCALL SEND_BYTE
+  695:	  040D	EB		    MOV A, R3
+  696:	  040E	02 03 A7	    LJMP SEND_BYTE
+  697:
+  698:				; ==============================
+  699:				;  KEYPAD SCANNING AND DEBOUNCE
+  700:				; ==============================
+  701:	  0411			KEYPAD_SCAN:
+  702:	  0411	75 90 F0	    MOV P1, #0F0H
+  703:	  0414	E5 90		    MOV A, P1
+  704:	  0416	54 F0		    ANL A, #0F0H
+  705:	  0418	B4 F0 03	    CJNE A, #0F0H, KEY_FOUND
+  706:	  041B	74 FF		    MOV A, #0FFH
+  707:	  041D	22		    RET
+  708:	  041E			KEY_FOUND:
+  709:	  041E	12 04 B3	    LCALL DEBOUNCE_DELAY
+  710:	  0421	75 90 F0	    MOV P1, #0F0H
+  711:	  0424	E5 90		    MOV A, P1
+  712:	  0426	54 F0		    ANL A, #0F0H
+  713:	  0428	B4 F0 03	    CJNE A, #0F0H, SCAN_ROW_0
+  714:	  042B	74 FF		    MOV A, #0FFH
+  715:	  042D	22		    RET
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 14
 
@@ -824,62 +824,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  716:	  043A	50 1B		    JNC BINARY_TOO_LONG
-  717:	  043C	EB		    MOV A, R3
-  718:	  043D	23		    RL A
-  719:	  043E	45 30		    ORL A, DIGIT_TMP
-  720:	  0440	FB		    MOV R3, A
-  721:	  0441	7A 00		    MOV R2, #00H
-  722:	  0443	05 45		    INC OP1_BITS
-  723:	  0445	22		    RET
-  724:	  0446			BINARY_OP2:
-  725:	  0446	E5 46		    MOV A, OP2_BITS
-  726:	  0448	B4 08 00	    CJNE A, #08H, $ + 3
-  727:	  044B	50 0A		    JNC BINARY_TOO_LONG
-  728:	  044D	ED		    MOV A, R5
-  729:	  044E	23		    RL A
-  730:	  044F	45 30		    ORL A, DIGIT_TMP
-  731:	  0451	FD		    MOV R5, A
-  732:	  0452	7C 00		    MOV R4, #00H
-  733:	  0454	05 46		    INC OP2_BITS
-  734:	  0456	22		    RET
-  735:	  0457			BINARY_TOO_LONG:
-  736:	  0457	75 41 08	    MOV ERROR_CODE, #08H
-  737:	  045A	02 06 C8	    LJMP SET_ERROR
-  738:
-  739:	  045D			ACCUMULATE_DIGIT:
-  740:	  045D	F5 30		    MOV DIGIT_TMP, A
-  741:	  045F	BF 00 1C	    CJNE R7, #00H, ACC_OP2
-  742:	  0462	8A 31		    MOV TMP_H, R2
-  743:	  0464	8B 32		    MOV TMP_L, R3
-  744:	  0466	12 04 9A	    LCALL MUL10_TMP_CHECK
-  745:	  0469	40 52		    JC INPUT_TOO_LARGE
-  746:	  046B	E5 32		    MOV A, TMP_L
-  747:	  046D	25 30		    ADD A, DIGIT_TMP
-  748:	  046F	F5 32		    MOV TMP_L, A
-  749:	  0471	E5 31		    MOV A, TMP_H
-  750:	  0473	34 00		    ADDC A, #00H
-  751:	  0475	40 46		    JC INPUT_TOO_LARGE
-  752:	  0477	F5 31		    MOV TMP_H, A
-  753:	  0479	AA 31		    MOV R2, TMP_H
-  754:	  047B	AB 32		    MOV R3, TMP_L
-  755:	  047D	22		    RET
-  756:	  047E			ACC_OP2:
-  757:	  047E	8C 31		    MOV TMP_H, R4
-  758:	  0480	8D 32		    MOV TMP_L, R5
-  759:	  0482	12 04 9A	    LCALL MUL10_TMP_CHECK
-  760:	  0485	40 36		    JC INPUT_TOO_LARGE
-  761:	  0487	E5 32		    MOV A, TMP_L
-  762:	  0489	25 30		    ADD A, DIGIT_TMP
-  763:	  048B	F5 32		    MOV TMP_L, A
-  764:	  048D	E5 31		    MOV A, TMP_H
-  765:	  048F	34 00		    ADDC A, #00H
-  766:	  0491	40 2A		    JC INPUT_TOO_LARGE
-  767:	  0493	F5 31		    MOV TMP_H, A
-  768:	  0495	AC 31		    MOV R4, TMP_H
-  769:	  0497	AD 32		    MOV R5, TMP_L
-  770:	  0499	22		    RET
-  771:
+  716:	  042E			SCAN_ROW_0:
+  717:	  042E	75 90 FE	    MOV P1, #0FEH
+  718:	  0431	E5 90		    MOV A, P1
+  719:	  0433	30 E4 42	    JNB ACC.4, GOT_KEY_1
+  720:	  0436	30 E5 42	    JNB ACC.5, GOT_KEY_2
+  721:	  0439	30 E6 42	    JNB ACC.6, GOT_KEY_3
+  722:	  043C	30 E7 54	    JNB ACC.7, GOT_KEY_A
+  723:	  043F			SCAN_ROW_1:
+  724:	  043F	75 90 FD	    MOV P1, #0FDH
+  725:	  0442	E5 90		    MOV A, P1
+  726:	  0444	30 E4 3A	    JNB ACC.4, GOT_KEY_4
+  727:	  0447	30 E5 3A	    JNB ACC.5, GOT_KEY_5
+  728:	  044A	30 E6 3A	    JNB ACC.6, GOT_KEY_6
+  729:	  044D	30 E7 46	    JNB ACC.7, GOT_KEY_B
+  730:	  0450			SCAN_ROW_2:
+  731:	  0450	75 90 FB	    MOV P1, #0FBH
+  732:	  0453	E5 90		    MOV A, P1
+  733:	  0455	30 E4 32	    JNB ACC.4, GOT_KEY_7
+  734:	  0458	30 E5 32	    JNB ACC.5, GOT_KEY_8
+  735:	  045B	30 E6 32	    JNB ACC.6, GOT_KEY_9
+  736:	  045E	30 E7 38	    JNB ACC.7, GOT_KEY_C
+  737:	  0461			SCAN_ROW_3:
+  738:	  0461	75 90 F7	    MOV P1, #0F7H
+  739:	  0464	E5 90		    MOV A, P1
+  740:	  0466	30 E4 36	    JNB ACC.4, GOT_KEY_STAR
+  741:	  0469	30 E5 09	    JNB ACC.5, GOT_KEY_0
+  742:	  046C	30 E6 33	    JNB ACC.6, GOT_KEY_HASH
+  743:	  046F	30 E7 2A	    JNB ACC.7, GOT_KEY_D
+  744:	  0472	74 FF		    MOV A, #0FFH
+  745:	  0474	22		    RET
+  746:	  0475	74 00		GOT_KEY_0:     MOV A, #00H
+  747:	  0477	22		               RET
+  748:	  0478	74 01		GOT_KEY_1:     MOV A, #01H
+  749:	  047A	22		               RET
+  750:	  047B	74 02		GOT_KEY_2:     MOV A, #02H
+  751:	  047D	22		               RET
+  752:	  047E	74 03		GOT_KEY_3:     MOV A, #03H
+  753:	  0480	22		               RET
+  754:	  0481	74 04		GOT_KEY_4:     MOV A, #04H
+  755:	  0483	22		               RET
+  756:	  0484	74 05		GOT_KEY_5:     MOV A, #05H
+  757:	  0486	22		               RET
+  758:	  0487	74 06		GOT_KEY_6:     MOV A, #06H
+  759:	  0489	22		               RET
+  760:	  048A	74 07		GOT_KEY_7:     MOV A, #07H
+  761:	  048C	22		               RET
+  762:	  048D	74 08		GOT_KEY_8:     MOV A, #08H
+  763:	  048F	22		               RET
+  764:	  0490	74 09		GOT_KEY_9:     MOV A, #09H
+  765:	  0492	22		               RET
+  766:	  0493	74 0A		GOT_KEY_A:     MOV A, #0AH
+  767:	  0495	22		               RET
+  768:	  0496	74 0B		GOT_KEY_B:     MOV A, #0BH
+  769:	  0498	22		               RET
+  770:	  0499	74 0C		GOT_KEY_C:     MOV A, #0CH
+  771:	  049B	22		               RET
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 15
 
@@ -887,62 +887,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  772:	  049A			MUL10_TMP_CHECK:
-  773:	  049A	E5 32		    MOV A, TMP_L
-  774:	  049C	75 F0 0A	    MOV B, #10
-  775:	  049F	A4		    MUL AB
-  776:	  04A0	F5 32		    MOV TMP_L, A
-  777:	  04A2	85 F0 36	    MOV REM_L, B
-  778:	  04A5	E5 31		    MOV A, TMP_H
-  779:	  04A7	75 F0 0A	    MOV B, #10
-  780:	  04AA	A4		    MUL AB
-  781:	  04AB	F5 31		    MOV TMP_H, A
-  782:	  04AD	E5 F0		    MOV A, B
-  783:	  04AF	70 0A		    JNZ MUL10_OVERFLOW
-  784:	  04B1	E5 31		    MOV A, TMP_H
-  785:	  04B3	25 36		    ADD A, REM_L
-  786:	  04B5	F5 31		    MOV TMP_H, A
-  787:	  04B7	40 02		    JC MUL10_OVERFLOW
-  788:	  04B9	C3		    CLR C
-  789:	  04BA	22		    RET
-  790:	  04BB			MUL10_OVERFLOW:
-  791:	  04BB	D3		    SETB C
-  792:	  04BC	22		    RET
-  793:	  04BD			INPUT_TOO_LARGE:
-  794:	  04BD	75 41 04	    MOV ERROR_CODE, #04H
-  795:	  04C0	02 06 C8	    LJMP SET_ERROR
-  796:
+  772:	  049C	74 0D		GOT_KEY_D:     MOV A, #0DH
+  773:	  049E	22		               RET
+  774:	  049F	74 0E		GOT_KEY_STAR:  MOV A, #0EH
+  775:	  04A1	22		               RET
+  776:	  04A2	74 0F		GOT_KEY_HASH:  MOV A, #0FH
+  777:	  04A4	22		               RET
+  778:
+  779:	  04A5			WAIT_KEY_RELEASE:
+  780:	  04A5	75 90 F0	    MOV P1, #0F0H
+  781:	  04A8	E5 90		    MOV A, P1
+  782:	  04AA	54 F0		    ANL A, #0F0H
+  783:	  04AC	B4 F0 F6	    CJNE A, #0F0H, WAIT_KEY_RELEASE
+  784:	  04AF	12 04 B3	    LCALL DEBOUNCE_DELAY
+  785:	  04B2	22		    RET
+  786:
+  787:	  04B3			DEBOUNCE_DELAY:
+  788:	  04B3	78 14		    MOV R0, #20
+  789:	  04B5			DEBOUNCE_OUTER:
+  790:	  04B5	79 FF		    MOV R1, #255
+  791:	  04B7	D9 FE		    DJNZ R1, $
+  792:	  04B9	D8 FA		    DJNZ R0, DEBOUNCE_OUTER
+  793:	  04BB	22		    RET
+  794:
+  795:				; ==============================
+  796:				; ACCUMULATOR & INPUT FORMATTING
   797:				; ==============================
-  798:				; 		ALU DISPATCHER
-  799:				; ==============================
-  800:	  04C3			EXECUTE_MATH:
-  801:	  04C3	EE		    MOV A, R6
-  802:	  04C4	60 0E		    JZ NO_OPERATOR_SELECTED
-  803:	  04C6	B4 0C 00	    CJNE A, #0CH, $ + 3
-  804:	  04C9	50 09		    JNC NO_OPERATOR_SELECTED
-  805:	  04CB	14		    DEC A
-  806:	  04CC	75 F0 03	    MOV B, #03H
-  807:	  04CF	A4		    MUL AB
-  808:	  04D0	90 04 D5	    MOV DPTR, #ALU_JUMP_TABLE
-  809:	  04D3	73		    JMP @A+DPTR
-  810:	  04D4			NO_OPERATOR_SELECTED:
-  811:	  04D4	22		    RET
-  812:
-  813:	  04D5			ALU_JUMP_TABLE:
-  814:	  04D5	02 04 F6	    LJMP MATH_ADD
-  815:	  04D8	02 05 23	    LJMP MATH_SUB
-  816:	  04DB	02 05 52	    LJMP MATH_MUL
-  817:	  04DE	02 05 C3	    LJMP MATH_DIV
-  818:	  04E1	02 06 31	    LJMP LOGIC_AND
-  819:	  04E4	02 06 37	    LJMP LOGIC_OR
-  820:	  04E7	02 06 3D	    LJMP LOGIC_XOR
-  821:	  04EA	02 06 43	    LJMP LOGIC_NOT
-  822:	  04ED	02 06 49	    LJMP MATH_SQUARE
-  823:	  04F0	02 06 53	    LJMP MATH_POWER
-  824:	  04F3	02 06 7F	    LJMP MATH_SQRT
+  798:	  04BC			ACCUMULATE_BINARY:
+  799:	  04BC	F5 30		    MOV DIGIT_TMP, A
+  800:	  04BE	BF 00 11	    CJNE R7, #00H, BINARY_OP2
+  801:	  04C1	E5 45		    MOV A, OP1_BITS
+  802:	  04C3	B4 08 00	    CJNE A, #08H, $ + 3
+  803:	  04C6	50 1B		    JNC BINARY_TOO_LONG
+  804:	  04C8	EB		    MOV A, R3
+  805:	  04C9	23		    RL A
+  806:	  04CA	45 30		    ORL A, DIGIT_TMP
+  807:	  04CC	FB		    MOV R3, A
+  808:	  04CD	7A 00		    MOV R2, #00H
+  809:	  04CF	05 45		    INC OP1_BITS
+  810:	  04D1	22		    RET
+  811:	  04D2			BINARY_OP2:
+  812:	  04D2	E5 46		    MOV A, OP2_BITS
+  813:	  04D4	B4 08 00	    CJNE A, #08H, $ + 3
+  814:	  04D7	50 0A		    JNC BINARY_TOO_LONG
+  815:	  04D9	ED		    MOV A, R5
+  816:	  04DA	23		    RL A
+  817:	  04DB	45 30		    ORL A, DIGIT_TMP
+  818:	  04DD	FD		    MOV R5, A
+  819:	  04DE	7C 00		    MOV R4, #00H
+  820:	  04E0	05 46		    INC OP2_BITS
+  821:	  04E2	22		    RET
+  822:	  04E3			BINARY_TOO_LONG:
+  823:	  04E3	75 41 08	    MOV ERROR_CODE, #08H
+  824:	  04E6	02 07 54	    LJMP SET_ERROR
   825:
-  826:				; ==============================
-  827:				; 		MODE 1: ARITHMETIC
+  826:	  04E9			ACCUMULATE_DIGIT:
+  827:	  04E9	F5 30		    MOV DIGIT_TMP, A
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 16
 
@@ -950,62 +950,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  828:				; ==============================
-  829:	  04F6			MATH_ADD:
-  830:	  04F6	20 02 0C	    JB 20H.2, ADD_TO_NEGATIVE_ANS
-  831:	  04F9	EB		    MOV A, R3
-  832:	  04FA	2D		    ADD A, R5
-  833:	  04FB	FB		    MOV R3, A
-  834:	  04FC	EA		    MOV A, R2
-  835:	  04FD	3C		    ADDC A, R4
-  836:	  04FE	FA		    MOV R2, A
-  837:	  04FF	50 03		    JNC ADD_OK
-  838:	  0501	02 06 BC	    LJMP ARITH_OVERFLOW
-  839:	  0504			ADD_OK:
-  840:	  0504	22		    RET
-  841:	  0505			ADD_TO_NEGATIVE_ANS:
-  842:	  0505	EC		    MOV A, R4
-  843:	  0506	C3		    CLR C
-  844:	  0507	9A		    SUBB A, R2
-  845:	  0508	40 11		    JC ADD_NEG_MAG_LARGER
-  846:	  050A	70 05		    JNZ ADD_POS_MAG_LARGER
-  847:	  050C	ED		    MOV A, R5
-  848:	  050D	C3		    CLR C
-  849:	  050E	9B		    SUBB A, R3
-  850:	  050F	40 0A		    JC ADD_NEG_MAG_LARGER
-  851:	  0511			ADD_POS_MAG_LARGER:
-  852:	  0511	C3		    CLR C
-  853:	  0512	ED		    MOV A, R5
-  854:	  0513	9B		    SUBB A, R3
-  855:	  0514	FB		    MOV R3, A
-  856:	  0515	EC		    MOV A, R4
-  857:	  0516	9A		    SUBB A, R2
-  858:	  0517	FA		    MOV R2, A
-  859:	  0518	C2 02		    CLR 20H.2
-  860:	  051A	22		    RET
-  861:	  051B			ADD_NEG_MAG_LARGER:
-  862:	  051B	C3		    CLR C
-  863:	  051C	EB		    MOV A, R3
-  864:	  051D	9D		    SUBB A, R5
-  865:	  051E	FB		    MOV R3, A
-  866:	  051F	EA		    MOV A, R2
-  867:	  0520	9C		    SUBB A, R4
-  868:	  0521	FA		    MOV R2, A
-  869:	  0522	22		    RET
-  870:
-  871:	  0523			MATH_SUB:
-  872:	  0523	20 02 20	    JB 20H.2, SUB_FROM_NEGATIVE_ANS
-  873:	  0526	EA		    MOV A, R2
-  874:	  0527	C3		    CLR C
-  875:	  0528	9C		    SUBB A, R4
-  876:	  0529	40 11		    JC SUB_RESULT_NEGATIVE
-  877:	  052B	70 05		    JNZ SUB_RESULT_POSITIVE
-  878:	  052D	EB		    MOV A, R3
-  879:	  052E	C3		    CLR C
-  880:	  052F	9D		    SUBB A, R5
-  881:	  0530	40 0A		    JC SUB_RESULT_NEGATIVE
-  882:	  0532			SUB_RESULT_POSITIVE:
-  883:	  0532	C3		    CLR C
+  828:	  04EB	BF 00 1C	    CJNE R7, #00H, ACC_OP2
+  829:	  04EE	8A 31		    MOV TMP_H, R2
+  830:	  04F0	8B 32		    MOV TMP_L, R3
+  831:	  04F2	12 05 26	    LCALL MUL10_TMP_CHECK
+  832:	  04F5	40 52		    JC INPUT_TOO_LARGE
+  833:	  04F7	E5 32		    MOV A, TMP_L
+  834:	  04F9	25 30		    ADD A, DIGIT_TMP
+  835:	  04FB	F5 32		    MOV TMP_L, A
+  836:	  04FD	E5 31		    MOV A, TMP_H
+  837:	  04FF	34 00		    ADDC A, #00H
+  838:	  0501	40 46		    JC INPUT_TOO_LARGE
+  839:	  0503	F5 31		    MOV TMP_H, A
+  840:	  0505	AA 31		    MOV R2, TMP_H
+  841:	  0507	AB 32		    MOV R3, TMP_L
+  842:	  0509	22		    RET
+  843:	  050A			ACC_OP2:
+  844:	  050A	8C 31		    MOV TMP_H, R4
+  845:	  050C	8D 32		    MOV TMP_L, R5
+  846:	  050E	12 05 26	    LCALL MUL10_TMP_CHECK
+  847:	  0511	40 36		    JC INPUT_TOO_LARGE
+  848:	  0513	E5 32		    MOV A, TMP_L
+  849:	  0515	25 30		    ADD A, DIGIT_TMP
+  850:	  0517	F5 32		    MOV TMP_L, A
+  851:	  0519	E5 31		    MOV A, TMP_H
+  852:	  051B	34 00		    ADDC A, #00H
+  853:	  051D	40 2A		    JC INPUT_TOO_LARGE
+  854:	  051F	F5 31		    MOV TMP_H, A
+  855:	  0521	AC 31		    MOV R4, TMP_H
+  856:	  0523	AD 32		    MOV R5, TMP_L
+  857:	  0525	22		    RET
+  858:
+  859:	  0526			MUL10_TMP_CHECK:
+  860:	  0526	E5 32		    MOV A, TMP_L
+  861:	  0528	75 F0 0A	    MOV B, #10
+  862:	  052B	A4		    MUL AB
+  863:	  052C	F5 32		    MOV TMP_L, A
+  864:	  052E	85 F0 36	    MOV REM_L, B
+  865:	  0531	E5 31		    MOV A, TMP_H
+  866:	  0533	75 F0 0A	    MOV B, #10
+  867:	  0536	A4		    MUL AB
+  868:	  0537	F5 31		    MOV TMP_H, A
+  869:	  0539	E5 F0		    MOV A, B
+  870:	  053B	70 0A		    JNZ MUL10_OVERFLOW
+  871:	  053D	E5 31		    MOV A, TMP_H
+  872:	  053F	25 36		    ADD A, REM_L
+  873:	  0541	F5 31		    MOV TMP_H, A
+  874:	  0543	40 02		    JC MUL10_OVERFLOW
+  875:	  0545	C3		    CLR C
+  876:	  0546	22		    RET
+  877:	  0547			MUL10_OVERFLOW:
+  878:	  0547	D3		    SETB C
+  879:	  0548	22		    RET
+  880:	  0549			INPUT_TOO_LARGE:
+  881:	  0549	75 41 04	    MOV ERROR_CODE, #04H
+  882:	  054C	02 07 54	    LJMP SET_ERROR
+  883:
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 17
 
@@ -1013,62 +1013,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  884:	  0533	EB		    MOV A, R3
-  885:	  0534	9D		    SUBB A, R5
-  886:	  0535	FB		    MOV R3, A
-  887:	  0536	EA		    MOV A, R2
-  888:	  0537	9C		    SUBB A, R4
-  889:	  0538	FA		    MOV R2, A
-  890:	  0539	C2 02		    CLR 20H.2
-  891:	  053B	22		    RET
-  892:	  053C			SUB_RESULT_NEGATIVE:
-  893:	  053C	C3		    CLR C
-  894:	  053D	ED		    MOV A, R5
-  895:	  053E	9B		    SUBB A, R3
-  896:	  053F	FB		    MOV R3, A
-  897:	  0540	EC		    MOV A, R4
-  898:	  0541	9A		    SUBB A, R2
-  899:	  0542	FA		    MOV R2, A
-  900:	  0543	D2 02		    SETB 20H.2
-  901:	  0545	22		    RET
-  902:	  0546			SUB_FROM_NEGATIVE_ANS:
-  903:	  0546	EB		    MOV A, R3
-  904:	  0547	2D		    ADD A, R5
-  905:	  0548	FB		    MOV R3, A
-  906:	  0549	EA		    MOV A, R2
-  907:	  054A	3C		    ADDC A, R4
-  908:	  054B	FA		    MOV R2, A
-  909:	  054C	50 03		    JNC SUB_NEG_OK
-  910:	  054E	02 06 BC	    LJMP ARITH_OVERFLOW
-  911:	  0551			SUB_NEG_OK:
-  912:	  0551	22		    RET
-  913:
-  914:	  0552			MATH_MUL:
-  915:	  0552	8B 37		    MOV MC0, R3
-  916:	  0554	8A 38		    MOV MC1, R2
-  917:	  0556	75 39 00	    MOV MC2, #00H
-  918:	  0559	75 3A 00	    MOV MC3, #00H
-  919:	  055C	8D 3F		    MOV MUL0, R5
-  920:	  055E	8C 40		    MOV MUL1, R4
-  921:	  0560	75 3B 00	    MOV PROD0, #00H
-  922:	  0563	75 3C 00	    MOV PROD1, #00H
-  923:	  0566	75 3D 00	    MOV PROD2, #00H
-  924:	  0569	75 3E 00	    MOV PROD3, #00H
-  925:	  056C	78 10		    MOV R0, #16
-  926:	  056E			MUL16_LOOP:
-  927:	  056E	E5 3F		    MOV A, MUL0
-  928:	  0570	54 01		    ANL A, #01H
-  929:	  0572	60 19		    JZ MUL16_NO_ADD
-  930:	  0574	C3		    CLR C
-  931:	  0575	E5 3B		    MOV A, PROD0
-  932:	  0577	25 37		    ADD A, MC0
-  933:	  0579	F5 3B		    MOV PROD0, A
-  934:	  057B	E5 3C		    MOV A, PROD1
-  935:	  057D	35 38		    ADDC A, MC1
-  936:	  057F	F5 3C		    MOV PROD1, A
-  937:	  0581	E5 3D		    MOV A, PROD2
-  938:	  0583	35 39		    ADDC A, MC2
-  939:	  0585	F5 3D		    MOV PROD2, A
+  884:				; ==============================
+  885:				; 		ALU DISPATCHER
+  886:				; ==============================
+  887:	  054F			EXECUTE_MATH:
+  888:	  054F	EE		    MOV A, R6
+  889:	  0550	60 0E		    JZ NO_OPERATOR_SELECTED
+  890:	  0552	B4 0C 00	    CJNE A, #0CH, $ + 3
+  891:	  0555	50 09		    JNC NO_OPERATOR_SELECTED
+  892:	  0557	14		    DEC A
+  893:	  0558	75 F0 03	    MOV B, #03H
+  894:	  055B	A4		    MUL AB
+  895:	  055C	90 05 61	    MOV DPTR, #ALU_JUMP_TABLE
+  896:	  055F	73		    JMP @A+DPTR
+  897:	  0560			NO_OPERATOR_SELECTED:
+  898:	  0560	22		    RET
+  899:
+  900:	  0561			ALU_JUMP_TABLE:
+  901:	  0561	02 05 82	    LJMP MATH_ADD
+  902:	  0564	02 05 AF	    LJMP MATH_SUB
+  903:	  0567	02 05 DE	    LJMP MATH_MUL
+  904:	  056A	02 06 4F	    LJMP MATH_DIV
+  905:	  056D	02 06 BD	    LJMP LOGIC_AND
+  906:	  0570	02 06 C3	    LJMP LOGIC_OR
+  907:	  0573	02 06 C9	    LJMP LOGIC_XOR
+  908:	  0576	02 06 CF	    LJMP LOGIC_NOT
+  909:	  0579	02 06 D5	    LJMP MATH_SQUARE
+  910:	  057C	02 06 DF	    LJMP MATH_POWER
+  911:	  057F	02 07 0B	    LJMP MATH_SQRT
+  912:
+  913:				; ==============================
+  914:				; 		MODE 1: ARITHMETIC
+  915:				; ==============================
+  916:	  0582			MATH_ADD:
+  917:	  0582	20 02 0C	    JB 20H.2, ADD_TO_NEGATIVE_ANS
+  918:	  0585	EB		    MOV A, R3
+  919:	  0586	2D		    ADD A, R5
+  920:	  0587	FB		    MOV R3, A
+  921:	  0588	EA		    MOV A, R2
+  922:	  0589	3C		    ADDC A, R4
+  923:	  058A	FA		    MOV R2, A
+  924:	  058B	50 03		    JNC ADD_OK
+  925:	  058D	02 07 48	    LJMP ARITH_OVERFLOW
+  926:	  0590			ADD_OK:
+  927:	  0590	22		    RET
+  928:	  0591			ADD_TO_NEGATIVE_ANS:
+  929:	  0591	EC		    MOV A, R4
+  930:	  0592	C3		    CLR C
+  931:	  0593	9A		    SUBB A, R2
+  932:	  0594	40 11		    JC ADD_NEG_MAG_LARGER
+  933:	  0596	70 05		    JNZ ADD_POS_MAG_LARGER
+  934:	  0598	ED		    MOV A, R5
+  935:	  0599	C3		    CLR C
+  936:	  059A	9B		    SUBB A, R3
+  937:	  059B	40 0A		    JC ADD_NEG_MAG_LARGER
+  938:	  059D			ADD_POS_MAG_LARGER:
+  939:	  059D	C3		    CLR C
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 18
 
@@ -1076,62 +1076,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  940:	  0587	E5 3E		    MOV A, PROD3
-  941:	  0589	35 3A		    ADDC A, MC3
-  942:	  058B	F5 3E		    MOV PROD3, A
-  943:	  058D			MUL16_NO_ADD:
-  944:	  058D	C3		    CLR C
-  945:	  058E	E5 37		    MOV A, MC0
-  946:	  0590	33		    RLC A
-  947:	  0591	F5 37		    MOV MC0, A
-  948:	  0593	E5 38		    MOV A, MC1
-  949:	  0595	33		    RLC A
-  950:	  0596	F5 38		    MOV MC1, A
-  951:	  0598	E5 39		    MOV A, MC2
-  952:	  059A	33		    RLC A
-  953:	  059B	F5 39		    MOV MC2, A
-  954:	  059D	E5 3A		    MOV A, MC3
-  955:	  059F	33		    RLC A
-  956:	  05A0	F5 3A		    MOV MC3, A
-  957:	  05A2	C3		    CLR C
-  958:	  05A3	E5 40		    MOV A, MUL1
-  959:	  05A5	13		    RRC A
-  960:	  05A6	F5 40		    MOV MUL1, A
-  961:	  05A8	E5 3F		    MOV A, MUL0
-  962:	  05AA	13		    RRC A
-  963:	  05AB	F5 3F		    MOV MUL0, A
-  964:	  05AD	D8 BF		    DJNZ R0, MUL16_LOOP
-  965:	  05AF	E5 3D		    MOV A, PROD2
-  966:	  05B1	45 3E		    ORL A, PROD3
-  967:	  05B3	60 03		    JZ MUL16_VALID
-  968:	  05B5	02 06 BC	    LJMP ARITH_OVERFLOW
-  969:	  05B8			MUL16_VALID:
-  970:	  05B8	AA 3C		    MOV R2, PROD1
-  971:	  05BA	AB 3B		    MOV R3, PROD0
-  972:	  05BC	EA		    MOV A, R2
-  973:	  05BD	4B		    ORL A, R3
-  974:	  05BE	70 02		    JNZ MUL16_KEEP_SIGN
-  975:	  05C0	C2 02		    CLR 20H.2
-  976:	  05C2			MUL16_KEEP_SIGN:
-  977:	  05C2	22		    RET
-  978:
-  979:	  05C3			MATH_DIV:
-  980:	  05C3	EC		    MOV A, R4
-  981:	  05C4	4D		    ORL A, R5
-  982:	  05C5	70 03		    JNZ DIVISOR_VALID
-  983:	  05C7	02 06 C2	    LJMP DIVIDE_BY_ZERO
-  984:	  05CA			DIVISOR_VALID:
-  985:	  05CA	8A 31		    MOV TMP_H, R2
-  986:	  05CC	8B 32		    MOV TMP_L, R3
-  987:	  05CE	75 33 00	    MOV QUO_H, #00H
-  988:	  05D1	75 34 00	    MOV QUO_L, #00H
-  989:	  05D4	75 35 00	    MOV REM_H, #00H
-  990:	  05D7	75 36 00	    MOV REM_L, #00H
-  991:	  05DA	78 10		    MOV R0, #16
-  992:	  05DC			DIV16_LOOP:
-  993:	  05DC	C3		    CLR C
-  994:	  05DD	E5 32		    MOV A, TMP_L
-  995:	  05DF	33		    RLC A
+  940:	  059E	ED		    MOV A, R5
+  941:	  059F	9B		    SUBB A, R3
+  942:	  05A0	FB		    MOV R3, A
+  943:	  05A1	EC		    MOV A, R4
+  944:	  05A2	9A		    SUBB A, R2
+  945:	  05A3	FA		    MOV R2, A
+  946:	  05A4	C2 02		    CLR 20H.2
+  947:	  05A6	22		    RET
+  948:	  05A7			ADD_NEG_MAG_LARGER:
+  949:	  05A7	C3		    CLR C
+  950:	  05A8	EB		    MOV A, R3
+  951:	  05A9	9D		    SUBB A, R5
+  952:	  05AA	FB		    MOV R3, A
+  953:	  05AB	EA		    MOV A, R2
+  954:	  05AC	9C		    SUBB A, R4
+  955:	  05AD	FA		    MOV R2, A
+  956:	  05AE	22		    RET
+  957:
+  958:	  05AF			MATH_SUB:
+  959:	  05AF	20 02 20	    JB 20H.2, SUB_FROM_NEGATIVE_ANS
+  960:	  05B2	EA		    MOV A, R2
+  961:	  05B3	C3		    CLR C
+  962:	  05B4	9C		    SUBB A, R4
+  963:	  05B5	40 11		    JC SUB_RESULT_NEGATIVE
+  964:	  05B7	70 05		    JNZ SUB_RESULT_POSITIVE
+  965:	  05B9	EB		    MOV A, R3
+  966:	  05BA	C3		    CLR C
+  967:	  05BB	9D		    SUBB A, R5
+  968:	  05BC	40 0A		    JC SUB_RESULT_NEGATIVE
+  969:	  05BE			SUB_RESULT_POSITIVE:
+  970:	  05BE	C3		    CLR C
+  971:	  05BF	EB		    MOV A, R3
+  972:	  05C0	9D		    SUBB A, R5
+  973:	  05C1	FB		    MOV R3, A
+  974:	  05C2	EA		    MOV A, R2
+  975:	  05C3	9C		    SUBB A, R4
+  976:	  05C4	FA		    MOV R2, A
+  977:	  05C5	C2 02		    CLR 20H.2
+  978:	  05C7	22		    RET
+  979:	  05C8			SUB_RESULT_NEGATIVE:
+  980:	  05C8	C3		    CLR C
+  981:	  05C9	ED		    MOV A, R5
+  982:	  05CA	9B		    SUBB A, R3
+  983:	  05CB	FB		    MOV R3, A
+  984:	  05CC	EC		    MOV A, R4
+  985:	  05CD	9A		    SUBB A, R2
+  986:	  05CE	FA		    MOV R2, A
+  987:	  05CF	D2 02		    SETB 20H.2
+  988:	  05D1	22		    RET
+  989:	  05D2			SUB_FROM_NEGATIVE_ANS:
+  990:	  05D2	EB		    MOV A, R3
+  991:	  05D3	2D		    ADD A, R5
+  992:	  05D4	FB		    MOV R3, A
+  993:	  05D5	EA		    MOV A, R2
+  994:	  05D6	3C		    ADDC A, R4
+  995:	  05D7	FA		    MOV R2, A
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 19
 
@@ -1139,62 +1139,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
-  996:	  05E0	F5 32		    MOV TMP_L, A
-  997:	  05E2	E5 31		    MOV A, TMP_H
-  998:	  05E4	33		    RLC A
-  999:	  05E5	F5 31		    MOV TMP_H, A
- 1000:	  05E7	E5 36		    MOV A, REM_L
- 1001:	  05E9	33		    RLC A
- 1002:	  05EA	F5 36		    MOV REM_L, A
- 1003:	  05EC	E5 35		    MOV A, REM_H
- 1004:	  05EE	33		    RLC A
- 1005:	  05EF	F5 35		    MOV REM_H, A
- 1006:	  05F1	75 42 00	    MOV DIV_OVER, #00H
- 1007:	  05F4	50 03		    JNC DIV16_NO_REM_OVER
- 1008:	  05F6	75 42 01	    MOV DIV_OVER, #01H
- 1009:	  05F9			DIV16_NO_REM_OVER:
- 1010:	  05F9	C3		    CLR C
- 1011:	  05FA	E5 34		    MOV A, QUO_L
- 1012:	  05FC	33		    RLC A
- 1013:	  05FD	F5 34		    MOV QUO_L, A
- 1014:	  05FF	E5 33		    MOV A, QUO_H
- 1015:	  0601	33		    RLC A
- 1016:	  0602	F5 33		    MOV QUO_H, A
- 1017:	  0604	E5 42		    MOV A, DIV_OVER
- 1018:	  0606	70 0E		    JNZ DIV16_SUBTRACT
- 1019:	  0608	E5 35		    MOV A, REM_H
- 1020:	  060A	C3		    CLR C
- 1021:	  060B	9C		    SUBB A, R4
- 1022:	  060C	40 16		    JC DIV16_LESS
- 1023:	  060E	70 06		    JNZ DIV16_SUBTRACT
- 1024:	  0610	E5 36		    MOV A, REM_L
- 1025:	  0612	C3		    CLR C
- 1026:	  0613	9D		    SUBB A, R5
- 1027:	  0614	40 0E		    JC DIV16_LESS
- 1028:	  0616			DIV16_SUBTRACT:
- 1029:	  0616	C3		    CLR C
- 1030:	  0617	E5 36		    MOV A, REM_L
- 1031:	  0619	9D		    SUBB A, R5
- 1032:	  061A	F5 36		    MOV REM_L, A
- 1033:	  061C	E5 35		    MOV A, REM_H
- 1034:	  061E	9C		    SUBB A, R4
- 1035:	  061F	F5 35		    MOV REM_H, A
- 1036:	  0621	43 34 01	    ORL QUO_L, #01H
- 1037:	  0624			DIV16_LESS:
- 1038:	  0624	D8 B6		    DJNZ R0, DIV16_LOOP
- 1039:	  0626	AA 33		    MOV R2, QUO_H
- 1040:	  0628	AB 34		    MOV R3, QUO_L
- 1041:	  062A	EA		    MOV A, R2
- 1042:	  062B	4B		    ORL A, R3
- 1043:	  062C	70 02		    JNZ DIV16_KEEP_SIGN
- 1044:	  062E	C2 02		    CLR 20H.2
- 1045:	  0630			DIV16_KEEP_SIGN:
- 1046:	  0630	22		    RET
- 1047:
- 1048:				; ==============================
- 1049:				; 		MODE 2: LOGIC
- 1050:				; ==============================
- 1051:	  0631			LOGIC_AND:
+  996:	  05D8	50 03		    JNC SUB_NEG_OK
+  997:	  05DA	02 07 48	    LJMP ARITH_OVERFLOW
+  998:	  05DD			SUB_NEG_OK:
+  999:	  05DD	22		    RET
+ 1000:
+ 1001:	  05DE			MATH_MUL:
+ 1002:	  05DE	8B 37		    MOV MC0, R3
+ 1003:	  05E0	8A 38		    MOV MC1, R2
+ 1004:	  05E2	75 39 00	    MOV MC2, #00H
+ 1005:	  05E5	75 3A 00	    MOV MC3, #00H
+ 1006:	  05E8	8D 3F		    MOV MUL0, R5
+ 1007:	  05EA	8C 40		    MOV MUL1, R4
+ 1008:	  05EC	75 3B 00	    MOV PROD0, #00H
+ 1009:	  05EF	75 3C 00	    MOV PROD1, #00H
+ 1010:	  05F2	75 3D 00	    MOV PROD2, #00H
+ 1011:	  05F5	75 3E 00	    MOV PROD3, #00H
+ 1012:	  05F8	78 10		    MOV R0, #16
+ 1013:	  05FA			MUL16_LOOP:
+ 1014:	  05FA	E5 3F		    MOV A, MUL0
+ 1015:	  05FC	54 01		    ANL A, #01H
+ 1016:	  05FE	60 19		    JZ MUL16_NO_ADD
+ 1017:	  0600	C3		    CLR C
+ 1018:	  0601	E5 3B		    MOV A, PROD0
+ 1019:	  0603	25 37		    ADD A, MC0
+ 1020:	  0605	F5 3B		    MOV PROD0, A
+ 1021:	  0607	E5 3C		    MOV A, PROD1
+ 1022:	  0609	35 38		    ADDC A, MC1
+ 1023:	  060B	F5 3C		    MOV PROD1, A
+ 1024:	  060D	E5 3D		    MOV A, PROD2
+ 1025:	  060F	35 39		    ADDC A, MC2
+ 1026:	  0611	F5 3D		    MOV PROD2, A
+ 1027:	  0613	E5 3E		    MOV A, PROD3
+ 1028:	  0615	35 3A		    ADDC A, MC3
+ 1029:	  0617	F5 3E		    MOV PROD3, A
+ 1030:	  0619			MUL16_NO_ADD:
+ 1031:	  0619	C3		    CLR C
+ 1032:	  061A	E5 37		    MOV A, MC0
+ 1033:	  061C	33		    RLC A
+ 1034:	  061D	F5 37		    MOV MC0, A
+ 1035:	  061F	E5 38		    MOV A, MC1
+ 1036:	  0621	33		    RLC A
+ 1037:	  0622	F5 38		    MOV MC1, A
+ 1038:	  0624	E5 39		    MOV A, MC2
+ 1039:	  0626	33		    RLC A
+ 1040:	  0627	F5 39		    MOV MC2, A
+ 1041:	  0629	E5 3A		    MOV A, MC3
+ 1042:	  062B	33		    RLC A
+ 1043:	  062C	F5 3A		    MOV MC3, A
+ 1044:	  062E	C3		    CLR C
+ 1045:	  062F	E5 40		    MOV A, MUL1
+ 1046:	  0631	13		    RRC A
+ 1047:	  0632	F5 40		    MOV MUL1, A
+ 1048:	  0634	E5 3F		    MOV A, MUL0
+ 1049:	  0636	13		    RRC A
+ 1050:	  0637	F5 3F		    MOV MUL0, A
+ 1051:	  0639	D8 BF		    DJNZ R0, MUL16_LOOP
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 20
 
@@ -1202,62 +1202,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
- 1052:	  0631	EB		    MOV A, R3
- 1053:	  0632	5D		    ANL A, R5
- 1054:	  0633	FB		    MOV R3, A
- 1055:	  0634	7A 00		    MOV R2, #00H
- 1056:	  0636	22		    RET
- 1057:	  0637			LOGIC_OR:
- 1058:	  0637	EB		    MOV A, R3
- 1059:	  0638	4D		    ORL A, R5
- 1060:	  0639	FB		    MOV R3, A
- 1061:	  063A	7A 00		    MOV R2, #00H
- 1062:	  063C	22		    RET
- 1063:	  063D			LOGIC_XOR:
- 1064:	  063D	EB		    MOV A, R3
- 1065:	  063E	6D		    XRL A, R5
- 1066:	  063F	FB		    MOV R3, A
- 1067:	  0640	7A 00		    MOV R2, #00H
- 1068:	  0642	22		    RET
- 1069:	  0643			LOGIC_NOT:
- 1070:	  0643	EB		    MOV A, R3
- 1071:	  0644	F4		    CPL A
- 1072:	  0645	FB		    MOV R3, A
- 1073:	  0646	7A 00		    MOV R2, #00H
- 1074:	  0648	22		    RET
- 1075:
- 1076:				; ==============================
- 1077:				; 		MODE 3: ADVANCE
- 1078:				; ==============================
- 1079:	  0649			MATH_SQUARE:
- 1080:	  0649	EA		    MOV A, R2
- 1081:	  064A	FC		    MOV R4, A
- 1082:	  064B	EB		    MOV A, R3
- 1083:	  064C	FD		    MOV R5, A
- 1084:	  064D	C2 02		    CLR 20H.2
- 1085:	  064F	12 05 52	    LCALL MATH_MUL
- 1086:	  0652	22		    RET
- 1087:
- 1088:	  0653			MATH_POWER:
- 1089:	  0653	EC		    MOV A, R4
- 1090:	  0654	4D		    ORL A, R5
- 1091:	  0655	70 05		    JNZ POWER_START
- 1092:	  0657	7A 00		    MOV R2, #00H
- 1093:	  0659	7B 01		    MOV R3, #01H
- 1094:	  065B	22		    RET
- 1095:	  065C			POWER_START:
- 1096:	  065C	8A 48		    MOV 48H, R2
- 1097:	  065E	8B 49		    MOV 49H, R3
- 1098:	  0660			POWER_LOOP:
- 1099:	  0660	EC		    MOV A, R4
- 1100:	  0661	4D		    ORL A, R5
- 1101:	  0662	14		    DEC A
- 1102:	  0663	60 19		    JZ POWER_DONE
- 1103:	  0665	ED		    MOV A, R5
- 1104:	  0666	70 01		    JNZ P_DEC_L
- 1105:	  0668	1C		    DEC R4
- 1106:	  0669			P_DEC_L:
- 1107:	  0669	1D		    DEC R5
+ 1052:	  063B	E5 3D		    MOV A, PROD2
+ 1053:	  063D	45 3E		    ORL A, PROD3
+ 1054:	  063F	60 03		    JZ MUL16_VALID
+ 1055:	  0641	02 07 48	    LJMP ARITH_OVERFLOW
+ 1056:	  0644			MUL16_VALID:
+ 1057:	  0644	AA 3C		    MOV R2, PROD1
+ 1058:	  0646	AB 3B		    MOV R3, PROD0
+ 1059:	  0648	EA		    MOV A, R2
+ 1060:	  0649	4B		    ORL A, R3
+ 1061:	  064A	70 02		    JNZ MUL16_KEEP_SIGN
+ 1062:	  064C	C2 02		    CLR 20H.2
+ 1063:	  064E			MUL16_KEEP_SIGN:
+ 1064:	  064E	22		    RET
+ 1065:
+ 1066:	  064F			MATH_DIV:
+ 1067:	  064F	EC		    MOV A, R4
+ 1068:	  0650	4D		    ORL A, R5
+ 1069:	  0651	70 03		    JNZ DIVISOR_VALID
+ 1070:	  0653	02 07 4E	    LJMP DIVIDE_BY_ZERO
+ 1071:	  0656			DIVISOR_VALID:
+ 1072:	  0656	8A 31		    MOV TMP_H, R2
+ 1073:	  0658	8B 32		    MOV TMP_L, R3
+ 1074:	  065A	75 33 00	    MOV QUO_H, #00H
+ 1075:	  065D	75 34 00	    MOV QUO_L, #00H
+ 1076:	  0660	75 35 00	    MOV REM_H, #00H
+ 1077:	  0663	75 36 00	    MOV REM_L, #00H
+ 1078:	  0666	78 10		    MOV R0, #16
+ 1079:	  0668			DIV16_LOOP:
+ 1080:	  0668	C3		    CLR C
+ 1081:	  0669	E5 32		    MOV A, TMP_L
+ 1082:	  066B	33		    RLC A
+ 1083:	  066C	F5 32		    MOV TMP_L, A
+ 1084:	  066E	E5 31		    MOV A, TMP_H
+ 1085:	  0670	33		    RLC A
+ 1086:	  0671	F5 31		    MOV TMP_H, A
+ 1087:	  0673	E5 36		    MOV A, REM_L
+ 1088:	  0675	33		    RLC A
+ 1089:	  0676	F5 36		    MOV REM_L, A
+ 1090:	  0678	E5 35		    MOV A, REM_H
+ 1091:	  067A	33		    RLC A
+ 1092:	  067B	F5 35		    MOV REM_H, A
+ 1093:	  067D	75 42 00	    MOV DIV_OVER, #00H
+ 1094:	  0680	50 03		    JNC DIV16_NO_REM_OVER
+ 1095:	  0682	75 42 01	    MOV DIV_OVER, #01H
+ 1096:	  0685			DIV16_NO_REM_OVER:
+ 1097:	  0685	C3		    CLR C
+ 1098:	  0686	E5 34		    MOV A, QUO_L
+ 1099:	  0688	33		    RLC A
+ 1100:	  0689	F5 34		    MOV QUO_L, A
+ 1101:	  068B	E5 33		    MOV A, QUO_H
+ 1102:	  068D	33		    RLC A
+ 1103:	  068E	F5 33		    MOV QUO_H, A
+ 1104:	  0690	E5 42		    MOV A, DIV_OVER
+ 1105:	  0692	70 0E		    JNZ DIV16_SUBTRACT
+ 1106:	  0694	E5 35		    MOV A, REM_H
+ 1107:	  0696	C3		    CLR C
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 21
 
@@ -1265,62 +1265,62 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
- 1108:	  066A	C0 04		    PUSH 04H
- 1109:	  066C	C0 05		    PUSH 05H
- 1110:	  066E	AC 48		    MOV R4, 48H
- 1111:	  0670	AD 49		    MOV R5, 49H
- 1112:	  0672	12 05 52	    LCALL MATH_MUL
- 1113:	  0675	D0 05		    POP 05H
- 1114:	  0677	D0 04		    POP 04H
- 1115:	  0679	20 00 02	    JB 20H.0, POWER_DONE
- 1116:	  067C	80 E2		    SJMP POWER_LOOP
- 1117:	  067E			POWER_DONE:
- 1118:	  067E	22		    RET
- 1119:
- 1120:	  067F			MATH_SQRT:
- 1121:	  067F	8A 48		    MOV 48H, R2                 ; High byte of input
- 1122:	  0681	8B 49		    MOV 49H, R3                 ; Low byte of input
- 1123:
- 1124:				    ; Check if input is zero
- 1125:	  0683	E5 48		    MOV A, 48H
- 1126:	  0685	45 49		    ORL A, 49H
- 1127:	  0687	70 05		    JNZ SQRT_START
- 1128:	  0689	7A 00		    MOV R2, #00H
- 1129:	  068B	7B 00		    MOV R3, #00H
- 1130:	  068D	22		    RET
- 1131:
- 1132:	  068E			SQRT_START:
- 1133:	  068E	78 00		    MOV R0, #00H
+ 1108:	  0697	9C		    SUBB A, R4
+ 1109:	  0698	40 16		    JC DIV16_LESS
+ 1110:	  069A	70 06		    JNZ DIV16_SUBTRACT
+ 1111:	  069C	E5 36		    MOV A, REM_L
+ 1112:	  069E	C3		    CLR C
+ 1113:	  069F	9D		    SUBB A, R5
+ 1114:	  06A0	40 0E		    JC DIV16_LESS
+ 1115:	  06A2			DIV16_SUBTRACT:
+ 1116:	  06A2	C3		    CLR C
+ 1117:	  06A3	E5 36		    MOV A, REM_L
+ 1118:	  06A5	9D		    SUBB A, R5
+ 1119:	  06A6	F5 36		    MOV REM_L, A
+ 1120:	  06A8	E5 35		    MOV A, REM_H
+ 1121:	  06AA	9C		    SUBB A, R4
+ 1122:	  06AB	F5 35		    MOV REM_H, A
+ 1123:	  06AD	43 34 01	    ORL QUO_L, #01H
+ 1124:	  06B0			DIV16_LESS:
+ 1125:	  06B0	D8 B6		    DJNZ R0, DIV16_LOOP
+ 1126:	  06B2	AA 33		    MOV R2, QUO_H
+ 1127:	  06B4	AB 34		    MOV R3, QUO_L
+ 1128:	  06B6	EA		    MOV A, R2
+ 1129:	  06B7	4B		    ORL A, R3
+ 1130:	  06B8	70 02		    JNZ DIV16_KEEP_SIGN
+ 1131:	  06BA	C2 02		    CLR 20H.2
+ 1132:	  06BC			DIV16_KEEP_SIGN:
+ 1133:	  06BC	22		    RET
  1134:
- 1135:	  0690			SQRT_LOOP:
- 1136:	  0690	08		    INC R0
- 1137:	  0691	E8		    MOV A, R0
- 1138:	  0692	88 F0		    MOV B, R0
- 1139:	  0694	A4		    MUL AB                      ; B = High byte, A = Low byte
- 1140:	  0695	AC F0		    MOV R4, B                   ; R4 = Square High
- 1141:	  0697	FD		    MOV R5, A                   ; R5 = Square Low
- 1142:
- 1143:				    ; 16-bit subtraction: Target (48H:49H) - Square (R4:R5)
- 1144:	  0698	C3		    CLR C
- 1145:	  0699	E5 49		    MOV A, 49H
- 1146:	  069B	9D		    SUBB A, R5                  ; Low byte subtract
- 1147:	  069C	E5 48		    MOV A, 48H
- 1148:	  069E	9C		    SUBB A, R4                  ; High byte subtract with carry
- 1149:	  069F	40 0C		    JC SQRT_OVERSHOOT           ; Borrow set -> Square > Target
- 1150:	  06A1	E5 48			MOV A, 48H
- 1151:	  06A3	6C		    XRL A, R4
- 1152:	  06A4	70 EA		    JNZ SQRT_LOOP               ; High byte > 0 -> Target > Square, continue
- 1153:	  06A6	E5 49			MOV A, 49H
- 1154:	  06A8	6D		    XRL A, R5
- 1155:	  06A9	70 E5		    JNZ SQRT_LOOP
- 1156:	  06AB	80 08		    SJMP SQRT_EXACT             ; Perfect match!
- 1157:
- 1158:	  06AD			SQRT_OVERSHOOT:
- 1159:	  06AD	18		    DEC R0                      ; Step back to largest integer root
- 1160:	  06AE	7A 00			MOV R2, #00H
- 1161:	  06B0	E8			MOV A, R0
- 1162:	  06B1	FB		    MOV R3, A
- 1163:	  06B2	C2 02		    CLR 20H.2
+ 1135:				; ==============================
+ 1136:				; 		MODE 2: LOGIC
+ 1137:				; ==============================
+ 1138:	  06BD			LOGIC_AND:
+ 1139:	  06BD	EB		    MOV A, R3
+ 1140:	  06BE	5D		    ANL A, R5
+ 1141:	  06BF	FB		    MOV R3, A
+ 1142:	  06C0	7A 00		    MOV R2, #00H
+ 1143:	  06C2	22		    RET
+ 1144:	  06C3			LOGIC_OR:
+ 1145:	  06C3	EB		    MOV A, R3
+ 1146:	  06C4	4D		    ORL A, R5
+ 1147:	  06C5	FB		    MOV R3, A
+ 1148:	  06C6	7A 00		    MOV R2, #00H
+ 1149:	  06C8	22		    RET
+ 1150:	  06C9			LOGIC_XOR:
+ 1151:	  06C9	EB		    MOV A, R3
+ 1152:	  06CA	6D		    XRL A, R5
+ 1153:	  06CB	FB		    MOV R3, A
+ 1154:	  06CC	7A 00		    MOV R2, #00H
+ 1155:	  06CE	22		    RET
+ 1156:	  06CF			LOGIC_NOT:
+ 1157:	  06CF	EB		    MOV A, R3
+ 1158:	  06D0	F4		    CPL A
+ 1159:	  06D1	FB		    MOV R3, A
+ 1160:	  06D2	7A 00		    MOV R2, #00H
+ 1161:	  06D4	22		    RET
+ 1162:
+ 1163:				; ==============================
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 22
 
@@ -1328,30 +1328,128 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
  Line  I  Addr  Code            Source
 
- 1164:	  06B4	22			RET
- 1165:
- 1166:	  06B5			SQRT_EXACT:
- 1167:	  06B5	7A 00		    MOV R2, #00H
- 1168:	  06B7	E8			MOV A, R0
- 1169:	  06B8	FB		    MOV R3, A
- 1170:	  06B9	C2 02		    CLR 20H.2                   ; Positive result
- 1171:	  06BB	22		    RET
- 1172:
- 1173:				; ==============================
- 1174:				; 		ERROR DETECTION
- 1175:				; ==============================
- 1176:	  06BC			ARITH_OVERFLOW:
- 1177:	  06BC	75 41 01	    MOV ERROR_CODE, #01H
- 1178:	  06BF	02 06 C8	    LJMP SET_ERROR
- 1179:	  06C2			DIVIDE_BY_ZERO:
- 1180:	  06C2	75 41 03	    MOV ERROR_CODE, #03H
- 1181:	  06C5	02 06 C8	    LJMP SET_ERROR
- 1182:	  06C8			SET_ERROR:
- 1183:	  06C8	D2 00		    SETB 20H.0
- 1184:	  06CA	22		    RET
- 1185:
- 1186:				    END
- 1187:
+ 1164:				; 		MODE 3: ADVANCE
+ 1165:				; ==============================
+ 1166:	  06D5			MATH_SQUARE:
+ 1167:	  06D5	EA		    MOV A, R2
+ 1168:	  06D6	FC		    MOV R4, A
+ 1169:	  06D7	EB		    MOV A, R3
+ 1170:	  06D8	FD		    MOV R5, A
+ 1171:	  06D9	C2 02		    CLR 20H.2
+ 1172:	  06DB	12 05 DE	    LCALL MATH_MUL
+ 1173:	  06DE	22		    RET
+ 1174:
+ 1175:	  06DF			MATH_POWER:
+ 1176:	  06DF	EC		    MOV A, R4
+ 1177:	  06E0	4D		    ORL A, R5
+ 1178:	  06E1	70 05		    JNZ POWER_START
+ 1179:	  06E3	7A 00		    MOV R2, #00H
+ 1180:	  06E5	7B 01		    MOV R3, #01H
+ 1181:	  06E7	22		    RET
+ 1182:	  06E8			POWER_START:
+ 1183:	  06E8	8A 48		    MOV 48H, R2
+ 1184:	  06EA	8B 49		    MOV 49H, R3
+ 1185:	  06EC			POWER_LOOP:
+ 1186:	  06EC	EC		    MOV A, R4
+ 1187:	  06ED	4D		    ORL A, R5
+ 1188:	  06EE	14		    DEC A
+ 1189:	  06EF	60 19		    JZ POWER_DONE
+ 1190:	  06F1	ED		    MOV A, R5
+ 1191:	  06F2	70 01		    JNZ P_DEC_L
+ 1192:	  06F4	1C		    DEC R4
+ 1193:	  06F5			P_DEC_L:
+ 1194:	  06F5	1D		    DEC R5
+ 1195:	  06F6	C0 04		    PUSH 04H
+ 1196:	  06F8	C0 05		    PUSH 05H
+ 1197:	  06FA	AC 48		    MOV R4, 48H
+ 1198:	  06FC	AD 49		    MOV R5, 49H
+ 1199:	  06FE	12 05 DE	    LCALL MATH_MUL
+ 1200:	  0701	D0 05		    POP 05H
+ 1201:	  0703	D0 04		    POP 04H
+ 1202:	  0705	20 00 02	    JB 20H.0, POWER_DONE
+ 1203:	  0708	80 E2		    SJMP POWER_LOOP
+ 1204:	  070A			POWER_DONE:
+ 1205:	  070A	22		    RET
+ 1206:
+ 1207:	  070B			MATH_SQRT:
+ 1208:	  070B	8A 48		    MOV 48H, R2                 ; High byte of input
+ 1209:	  070D	8B 49		    MOV 49H, R3                 ; Low byte of input
+ 1210:
+ 1211:				    ; Check if input is zero
+ 1212:	  070F	E5 48		    MOV A, 48H
+ 1213:	  0711	45 49		    ORL A, 49H
+ 1214:	  0713	70 05		    JNZ SQRT_START
+ 1215:	  0715	7A 00		    MOV R2, #00H
+ 1216:	  0717	7B 00		    MOV R3, #00H
+ 1217:	  0719	22		    RET
+ 1218:
+ 1219:	  071A			SQRT_START:
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 23
+
+
+
+ Line  I  Addr  Code            Source
+
+ 1220:	  071A	78 00		    MOV R0, #00H
+ 1221:
+ 1222:	  071C			SQRT_LOOP:
+ 1223:	  071C	08		    INC R0
+ 1224:	  071D	E8		    MOV A, R0
+ 1225:	  071E	88 F0		    MOV B, R0
+ 1226:	  0720	A4		    MUL AB                      ; B = High byte, A = Low byte
+ 1227:	  0721	AC F0		    MOV R4, B                   ; R4 = Square High
+ 1228:	  0723	FD		    MOV R5, A                   ; R5 = Square Low
+ 1229:
+ 1230:				    ; 16-bit subtraction: Target (48H:49H) - Square (R4:R5)
+ 1231:	  0724	C3		    CLR C
+ 1232:	  0725	E5 49		    MOV A, 49H
+ 1233:	  0727	9D		    SUBB A, R5                  ; Low byte subtract
+ 1234:	  0728	E5 48		    MOV A, 48H
+ 1235:	  072A	9C		    SUBB A, R4                  ; High byte subtract with carry
+ 1236:	  072B	40 0C		    JC SQRT_OVERSHOOT           ; Borrow set -> Square > Target
+ 1237:	  072D	E5 48			MOV A, 48H
+ 1238:	  072F	6C		    XRL A, R4
+ 1239:	  0730	70 EA		    JNZ SQRT_LOOP               ; High byte > 0 -> Target > Square, continue
+ 1240:	  0732	E5 49			MOV A, 49H
+ 1241:	  0734	6D		    XRL A, R5
+ 1242:	  0735	70 E5		    JNZ SQRT_LOOP
+ 1243:	  0737	80 08		    SJMP SQRT_EXACT             ; Perfect match!
+ 1244:
+ 1245:	  0739			SQRT_OVERSHOOT:
+ 1246:	  0739	18		    DEC R0                      ; Step back to largest integer root
+ 1247:	  073A	7A 00			MOV R2, #00H
+ 1248:	  073C	E8			MOV A, R0
+ 1249:	  073D	FB		    MOV R3, A
+ 1250:	  073E	C2 02		    CLR 20H.2
+ 1251:	  0740	22			RET
+ 1252:
+ 1253:	  0741			SQRT_EXACT:
+ 1254:	  0741	7A 00		    MOV R2, #00H
+ 1255:	  0743	E8			MOV A, R0
+ 1256:	  0744	FB		    MOV R3, A
+ 1257:	  0745	C2 02		    CLR 20H.2                   ; Positive result
+ 1258:	  0747	22		    RET
+ 1259:
+ 1260:				; ==============================
+ 1261:				; 		ERROR DETECTION
+ 1262:				; ==============================
+ 1263:	  0748			ARITH_OVERFLOW:
+ 1264:	  0748	75 41 01	    MOV ERROR_CODE, #01H
+ 1265:	  074B	02 07 54	    LJMP SET_ERROR
+ 1266:	  074E			DIVIDE_BY_ZERO:
+ 1267:	  074E	75 41 03	    MOV ERROR_CODE, #03H
+ 1268:	  0751	02 07 54	    LJMP SET_ERROR
+ 1269:	  0754			SET_ERROR:
+ 1270:	  0754	D2 00		    SETB 20H.0
+ 1271:	  0756	22		    RET
+ 1272:
+ 1273:				    END
+
+
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 24
+
 
 
 
@@ -1364,7 +1462,7 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
 
 
-ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 23
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 25
 
 
 
@@ -1380,81 +1478,88 @@ SYMBOL				  TYPE     VALUE	LINE
 ??VERSION			  NUMBER    0130
 AC				  BIT	      D6
 ACC				  DATA	      E0
-ACCUMULATE_BINARY		  CODE	    0430	 711
-ACCUMULATE_DIGIT		  CODE	    045D	 739
-ACC_OP2				  CODE	    047E	 756
-ACTIVE_MODE_KEY			  CODE	    0040	 107
-ADDITIONAL_UNKNOWN		  CODE	    011A	 221
-ADD_NEG_MAG_LARGER		  CODE	    051B	 861
-ADD_OK				  CODE	    0504	 839
-ADD_POS_MAG_LARGER		  CODE	    0511	 851
-ADD_TO_NEGATIVE_ANS		  CODE	    0505	 841
-ADV_CHK_B			  CODE	    0158	 258
-ADV_CHK_C			  CODE	    0164	 265
-ADV_CHK_D			  CODE	    0170	 272
-ALU_JUMP_TABLE			  CODE	    04D5	 813
-ARITH_OVERFLOW			  CODE	    06BC	1176
+ACCUMULATE_BINARY		  CODE	    04BC	 798
+ACCUMULATE_DIGIT		  CODE	    04E9	 826
+ACC_OP2				  CODE	    050A	 843
+ACTIVE_MODE_KEY			  CODE	    0058	 126
+ADDITIONAL_UNKNOWN		  CODE	    0147	 251
+ADD_NEG_MAG_LARGER		  CODE	    05A7	 948
+ADD_OK				  CODE	    0590	 926
+ADD_POS_MAG_LARGER		  CODE	    059D	 938
+ADD_TO_NEGATIVE_ANS		  CODE	    0591	 928
+ADV_CHK_B			  CODE	    0185	 288
+ADV_CHK_C			  CODE	    0191	 295
+ADV_CHK_D			  CODE	    019D	 302
+ALU_JUMP_TABLE			  CODE	    0561	 900
+ARITH_OVERFLOW			  CODE	    0748	1263
 B				  DATA	      F0
-BACKSPACE_DONE			  CODE	    0214	 394
-BACKSPACE_OP1_CHECK		  CODE	    01EA	 363
-BACKSPACE_OPERATOR		  CODE	    01DA	 349
-BINARY_OP2			  CODE	    0446	 724
-BINARY_TOO_LONG			  CODE	    0457	 735
-CALC_LOOP			  CODE	    0019	  85
-CHECK_ACTUAL_CLEAR		  CODE	    006D	 128
-CHECK_BIT_COUNT_ECHO		  CODE	    00BF	 172
-CHECK_CLEAR_KEY			  CODE	    0050	 115
-CHECK_DIGIT			  CODE	    007A	 135
-CHECK_DIGIT_LOCK		  CODE	    008B	 143
-CHECK_DIGIT_RESULT		  CODE	    00A8	 159
-CHECK_LOGIC_MODE		  CODE	    0139	 241
-CHECK_MODE_OPERATOR		  CODE	    00F7	 202
-CHECK_OP2_STATE			  CODE	    01B3	 321
-CHECK_OPERATOR			  CODE	    00CD	 181
-CHECK_SCROLL_RIGHT		  CODE	    0062	 123
-CHK_ADV_B			  CODE	    010B	 212
-CHK_ADV_C			  CODE	    0110	 215
-CHK_ADV_D			  CODE	    0115	 218
-CLEAR_CURRENT			  CODE	    02A3	 483
+BACKSPACE_ALLOWED		  CODE	    01D5	 339
+BACKSPACE_ANS_TOKEN		  CODE	    025E	 441
+BACKSPACE_DONE			  CODE	    0289	 468
+BACKSPACE_OP1_CHECK		  CODE	    0234	 411
+BACKSPACE_OPERATOR		  CODE	    0224	 397
+BINARY_OP2			  CODE	    04D2	 811
+BINARY_TOO_LONG			  CODE	    04E3	 822
+CALC_LOOP			  CODE	    001B	  93
+CHECK_ACTUAL_CLEAR		  CODE	    0085	 147
+CHECK_BIT_COUNT_ECHO		  CODE	    00E0	 195
+CHECK_CLEAR_KEY			  CODE	    0068	 134
+CHECK_DIGIT			  CODE	    0092	 154
+CHECK_DIGIT_LOCK		  CODE	    00A3	 162
+CHECK_DIGIT_RESULT		  CODE	    00C9	 182
+CHECK_LOGIC_MODE		  CODE	    0166	 271
+CHECK_MODE_OPERATOR		  CODE	    0124	 232
+CHECK_OP2_STATE			  CODE	    01EB	 358
+CHECK_OPERATOR			  CODE	    00EE	 204
+CHECK_SCROLL_RIGHT		  CODE	    007A	 142
+CHECK_UNARY_DIGIT_LOCK		  CODE	    00AC	 166
+CHK_ADV_B			  CODE	    0138	 242
+CHK_ADV_C			  CODE	    013D	 245
+CHK_ADV_D			  CODE	    0142	 248
+CLEAR_CURRENT			  CODE	    0339	 575
 CY				  BIT	      D7
-DEBOUNCE_DELAY			  CODE	    0427	 700
-DEBOUNCE_OUTER			  CODE	    0429	 702
-DECODE_ADV_MODE			  CODE	    014A	 250
-DECODE_MODE_OPERATOR		  CODE	    0126	 229
-DIGIT_ENTRY_READY		  CODE	    0097	 149
-DIGIT_ERROR			  CODE	    00B8	 168
-DIGIT_NOT_LOCKED		  CODE	    0091	 146
-DIGIT_TMP			  NUMBER    0030	  40
-DIV10_BS_LESS			  CODE	    0247	 430
+DEBOUNCE_DELAY			  CODE	    04B3	 787
+DEBOUNCE_OUTER			  CODE	    04B5	 789
+DECODE_ADV_MODE			  CODE	    0177	 280
+DECODE_MODE_OPERATOR		  CODE	    0153	 259
+DIGIT_ENTRY_READY		  CODE	    00B8	 172
+DIGIT_ERROR			  CODE	    00D9	 191
 
-ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 24
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 26
 
 
 
 SYMBOL				  TYPE     VALUE	LINE
 ------------------------------------------------------------
-DIV10_BS_LOOP			  CODE	    0220	 406
-DIV16_KEEP_SIGN			  CODE	    0630	1045
-DIV16_LESS			  CODE	    0624	1037
-DIV16_LOOP			  CODE	    05DC	 992
-DIV16_NO_REM_OVER		  CODE	    05F9	1009
-DIV16_SUBTRACT			  CODE	    0616	1028
-DIVIDE_BY_ZERO			  CODE	    06C2	1179
-DIVISOR_VALID			  CODE	    05CA	 984
-DIV_OVER			  NUMBER    0042	  58
-DIV_TMP_BY_10			  CODE	    0215	 401
-DO_BACKSPACE			  CODE	    0025	  91
+DIGIT_NOT_LOCKED		  CODE	    00B2	 169
+DIGIT_TMP			  NUMBER    0030	  44
+DIV10_BS_LESS			  CODE	    02D9	 520
+DIV10_BS_LOOP			  CODE	    02B2	 496
+DIV16_KEEP_SIGN			  CODE	    06BC	1132
+DIV16_LESS			  CODE	    06B0	1124
+DIV16_LOOP			  CODE	    0668	1079
+DIV16_NO_REM_OVER		  CODE	    0685	1096
+DIV16_SUBTRACT			  CODE	    06A2	1115
+DIVIDE_BY_ZERO			  CODE	    074E	1266
+DIVISOR_VALID			  CODE	    0656	1071
+DIV_OVER			  NUMBER    0042	  62
+DIV_TMP_BY_10			  CODE	    02A7	 491
+DO_ACTIVE_MODE_BACKSPACE	  CODE	    0034	 105
+DO_BACKSPACE			  CODE	    002A	 100
 DPH				  DATA	      83
 DPL				  DATA	      82
 EA				  BIT	      AF
-ECHO_EXCEEDED_DIGIT		  CODE	    00C2	 174
-EQUALS_SHOW_ERROR		  CODE	    00F1	 198
-ERROR_CODE			  NUMBER    0041	  57
+ECHO_EXCEEDED_DIGIT		  CODE	    00E3	 197
+EQUALS_SHOW_ERROR		  CODE	    011B	 226
+ERROR_CODE			  NUMBER    0041	  61
 ES				  BIT	      AC
 ET0				  BIT	      A9
 ET1				  BIT	      AB
 EV_ANS				  NUMBER    00E6	  31
 EV_BACKSPACE			  NUMBER    00EA	  35
+EV_BACKSPACE_ANS		  NUMBER    00EB	  36
+EV_BS_REMOVE_OP			  NUMBER    00EE	  39
+EV_BS_SHOW_OP			  NUMBER    00ED	  38
 EV_CLEAR			  NUMBER    00E4	  29
 EV_CREDITS			  NUMBER    00CB	  19
 EV_EQUALS			  NUMBER    00E7	  32
@@ -1475,146 +1580,13 @@ EV_OP_SQRT			  NUMBER    00CA	  18
 EV_OP_SQUARE			  NUMBER    00C8	  16
 EV_OP_SUB			  NUMBER    00C1	   9
 EV_OP_XOR			  NUMBER    00C6	  14
+EV_POWER_OFF			  NUMBER    00EC	  37
 EV_RESULT_BIN			  NUMBER    00D1	  22
 EV_RESULT_DEC			  NUMBER    00D0	  21
-EV_RESULT_FRAC			  NUMBER    00D3	  24
+EV_RESULT_REM			  NUMBER    00D3	  24
 EV_SCROLL_LEFT			  NUMBER    00E8	  33
 EV_SCROLL_RIGHT			  NUMBER    00E9	  34
 EV_STARTUP			  NUMBER    00E0	  25
-EX0				  BIT	      A8
-EX1				  BIT	      AA
-EXECUTE_MATH			  CODE	    04C3	 800
-EXTI0				  CODE	    0003
-EXTI1				  CODE	    0013
-F0				  BIT	      D5
-GOT_KEY_0			  CODE	    03E9	 659
-GOT_KEY_1			  CODE	    03EC	 661
-
-ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 25
-
-
-
-SYMBOL				  TYPE     VALUE	LINE
-------------------------------------------------------------
-GOT_KEY_2			  CODE	    03EF	 663
-GOT_KEY_3			  CODE	    03F2	 665
-GOT_KEY_4			  CODE	    03F5	 667
-GOT_KEY_5			  CODE	    03F8	 669
-GOT_KEY_6			  CODE	    03FB	 671
-GOT_KEY_7			  CODE	    03FE	 673
-GOT_KEY_8			  CODE	    0401	 675
-GOT_KEY_9			  CODE	    0404	 677
-GOT_KEY_A			  CODE	    0407	 679
-GOT_KEY_B			  CODE	    040A	 681
-GOT_KEY_C			  CODE	    040D	 683
-GOT_KEY_D			  CODE	    0410	 685
-GOT_KEY_HASH			  CODE	    0416	 689
-GOT_KEY_STAR			  CODE	    0413	 687
-HANDLE_BACKSPACE		  CODE	    0199	 299
-HASH_EXECUTE			  CODE	    00D8	 187
-IE				  DATA	      A8
-IE0				  BIT	      89
-IE1				  BIT	      8B
-IGNORE_BINARY_DIGIT		  CODE	    00B5	 166
-INPUT_TOO_LARGE			  CODE	    04BD	 793
-INT0				  BIT	      B2
-INT1				  BIT	      B3
-IP				  DATA	      B8
-IT0				  BIT	      88
-IT1				  BIT	      8A
-KEYPAD_SCAN			  CODE	    0385	 614
-KEY_FOUND			  CODE	    0392	 621
-LOGIC_AND			  CODE	    0631	1051
-LOGIC_BINARY_OPERATOR		  CODE	    017E	 280
-LOGIC_NOT			  CODE	    0643	1069
-LOGIC_OR			  CODE	    0637	1057
-LOGIC_XOR			  CODE	    063D	1063
-MAIN				  CODE	    0003	  75
-MATH_ADD			  CODE	    04F6	 829
-MATH_DIV			  CODE	    05C3	 979
-MATH_MUL			  CODE	    0552	 914
-MATH_POWER			  CODE	    0653	1088
-MATH_SQRT			  CODE	    067F	1120
-MATH_SQUARE			  CODE	    0649	1079
-MATH_SUB			  CODE	    0523	 871
-MC0				  NUMBER    0037	  47
-MC1				  NUMBER    0038	  48
-MC2				  NUMBER    0039	  49
-MC3				  NUMBER    003A	  50
-MODE				  NUMBER    0044	  59
-MODE_OPERATOR_IN_RANGE		  CODE	    00FF	 206
-MODE_SELECTED			  CODE	    029A	 476
-MUL0				  NUMBER    003F	  55
-MUL1				  NUMBER    0040	  56
-MUL10_OVERFLOW			  CODE	    04BB	 790
-MUL10_TMP_CHECK			  CODE	    049A	 772
-MUL16_KEEP_SIGN			  CODE	    05C2	 976
-MUL16_LOOP			  CODE	    056E	 926
-MUL16_NO_ADD			  CODE	    058D	 943
-MUL16_VALID			  CODE	    05B8	 969
-
-ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 26
-
-
-
-SYMBOL				  TYPE     VALUE	LINE
-------------------------------------------------------------
-NEXT_OPERAND			  CODE	    018D	 291
-NO_OPERATOR_SELECTED		  CODE	    04D4	 810
-OP1_BITS			  NUMBER    0045	  60
-OP1_DECIMAL_BS			  CODE	    01FE	 380
-OP2_BITS			  NUMBER    0046	  61
-OP2_DECIMAL_BS			  CODE	    01C7	 338
-OP_BS_NO_DIGIT			  CODE	    01E6	 359
-OV				  BIT	      D2
-P				  BIT	      D0
-P0				  DATA	      80
-P1				  DATA	      90
-P2				  DATA	      A0
-P3				  DATA	      B0
-PCON				  DATA	      87
-POWER_DONE			  CODE	    067E	1117
-POWER_LOOP			  CODE	    0660	1098
-POWER_START			  CODE	    065C	1095
-PREPARE_ANS_DONE		  CODE	    02CE	 505
-PREPARE_ANS_EXPRESSION		  CODE	    02AE	 491
-PREPARE_MODE_OPERATOR		  CODE	    011D	 224
-PREPARE_OPERATOR_CHECK_BINARY	  CODE	    02DE	 515
-PREPARE_OPERATOR_DONE		  CODE	    02F3	 527
-PREPARE_OPERATOR_ENTRY		  CODE	    02CF	 508
-PREPARE_OPERATOR_ERROR		  CODE	    02F0	 525
-PREPARE_OPERATOR_EXECUTE_CHAIN	  CODE	    02E4	 518
-PREPARE_OPERATOR_USE_ANS	  CODE	    02EC	 522
-PROCESS_KEY			  CODE	    002B	  95
-PROD0				  NUMBER    003B	  51
-PROD1				  NUMBER    003C	  52
-PROD2				  NUMBER    003D	  53
-PROD3				  NUMBER    003E	  54
-PS				  BIT	      BC
-PSW				  DATA	      D0
-PT0				  BIT	      B9
-PT1				  BIT	      BB
-PX0				  BIT	      B8
-PX1				  BIT	      BA
-P_DEC_L				  CODE	    0669	1106
-QUO_H				  NUMBER    0033	  43
-QUO_L				  NUMBER    0034	  44
-RB8				  BIT	      9A
-RD				  BIT	      B7
-REM_H				  NUMBER    0035	  45
-REM_L				  NUMBER    0036	  46
-REN				  BIT	      9C
-RESET				  CODE	    0000
-RESET_STATE			  CODE	    0250	 439
-RI				  BIT	      98
-RS0				  BIT	      D3
-RS1				  BIT	      D4
-RXD				  BIT	      B0
-SBUF				  DATA	      99
-SCAN_ROW_0			  CODE	    03A2	 629
-SCAN_ROW_1			  CODE	    03B3	 636
-SCAN_ROW_2			  CODE	    03C4	 643
-SCAN_ROW_3			  CODE	    03D5	 650
 
 ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 27
 
@@ -1622,44 +1594,195 @@ ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. H
 
 SYMBOL				  TYPE     VALUE	LINE
 ------------------------------------------------------------
+EX0				  BIT	      A8
+EX1				  BIT	      AA
+EXECUTE_MATH			  CODE	    054F	 887
+EXTI0				  CODE	    0003
+EXTI1				  CODE	    0013
+F0				  BIT	      D5
+GOT_KEY_0			  CODE	    0475	 746
+GOT_KEY_1			  CODE	    0478	 748
+GOT_KEY_2			  CODE	    047B	 750
+GOT_KEY_3			  CODE	    047E	 752
+GOT_KEY_4			  CODE	    0481	 754
+GOT_KEY_5			  CODE	    0484	 756
+GOT_KEY_6			  CODE	    0487	 758
+GOT_KEY_7			  CODE	    048A	 760
+GOT_KEY_8			  CODE	    048D	 762
+GOT_KEY_9			  CODE	    0490	 764
+GOT_KEY_A			  CODE	    0493	 766
+GOT_KEY_B			  CODE	    0496	 768
+GOT_KEY_C			  CODE	    0499	 770
+GOT_KEY_D			  CODE	    049C	 772
+GOT_KEY_HASH			  CODE	    04A2	 776
+GOT_KEY_STAR			  CODE	    049F	 774
+HANDLE_BACKSPACE		  CODE	    01C6	 329
+HANDLE_POWER_KEY		  CODE	    028A	 471
+HASH_EXECUTE			  CODE	    00F9	 210
+HASH_IGNORE_INCOMPLETE		  CODE	    0121	 229
+HASH_OPERANDS_READY		  CODE	    0100	 214
+IE				  DATA	      A8
+IE0				  BIT	      89
+IE1				  BIT	      8B
+IGNORE_BINARY_DIGIT		  CODE	    00D6	 189
+INPUT_TOO_LARGE			  CODE	    0549	 880
+INT0				  BIT	      B2
+INT1				  BIT	      B3
+IP				  DATA	      B8
+IT0				  BIT	      88
+IT1				  BIT	      8A
+KEYPAD_SCAN			  CODE	    0411	 701
+KEY_FOUND			  CODE	    041E	 708
+LOGIC_AND			  CODE	    06BD	1138
+LOGIC_BINARY_OPERATOR		  CODE	    01AB	 310
+LOGIC_NOT			  CODE	    06CF	1156
+LOGIC_OR			  CODE	    06C3	1144
+LOGIC_XOR			  CODE	    06C9	1150
+MAIN				  CODE	    0003	  82
+MATH_ADD			  CODE	    0582	 916
+MATH_DIV			  CODE	    064F	1066
+MATH_MUL			  CODE	    05DE	1001
+MATH_POWER			  CODE	    06DF	1175
+MATH_SQRT			  CODE	    070B	1207
+MATH_SQUARE			  CODE	    06D5	1166
+MATH_SUB			  CODE	    05AF	 958
+MC0				  NUMBER    0037	  51
+MC1				  NUMBER    0038	  52
+MC2				  NUMBER    0039	  53
+MC3				  NUMBER    003A	  54
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 28
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+MODE				  NUMBER    0044	  63
+MODE_OPERATOR_IN_RANGE		  CODE	    012C	 236
+MODE_SELECTED			  CODE	    0330	 568
+MUL0				  NUMBER    003F	  59
+MUL1				  NUMBER    0040	  60
+MUL10_OVERFLOW			  CODE	    0547	 877
+MUL10_TMP_CHECK			  CODE	    0526	 859
+MUL16_KEEP_SIGN			  CODE	    064E	1063
+MUL16_LOOP			  CODE	    05FA	1013
+MUL16_NO_ADD			  CODE	    0619	1030
+MUL16_VALID			  CODE	    0644	1056
+NEXT_OPERAND			  CODE	    01BA	 321
+NO_OPERATOR_SELECTED		  CODE	    0560	 897
+OP1_BITS			  NUMBER    0045	  64
+OP1_DECIMAL_BS			  CODE	    024B	 429
+OP2_BINARY_BS_SEND		  CODE	    0206	 377
+OP2_BITS			  NUMBER    0046	  65
+OP2_DECIMAL_BS			  CODE	    0208	 380
+OP2_DECIMAL_BS_SEND		  CODE	    0222	 394
+OP_BS_NO_DIGIT			  CODE	    0230	 407
+OV				  BIT	      D2
+P				  BIT	      D0
+P0				  DATA	      80
+P1				  DATA	      90
+P2				  DATA	      A0
+P3				  DATA	      B0
+PCON				  DATA	      87
+POWER_DONE			  CODE	    070A	1204
+POWER_LOOP			  CODE	    06EC	1185
+POWER_OFF			  CODE	    0293	 476
+POWER_OFF_WAIT			  CODE	    003A	 109
+POWER_ON_RESTART		  CODE	    029A	 480
+POWER_START			  CODE	    06E8	1182
+PREPARE_ANS_DONE		  CODE	    0368	 599
+PREPARE_ANS_EXPRESSION		  CODE	    0344	 583
+PREPARE_MODE_OPERATOR		  CODE	    014A	 254
+PREPARE_OPERATOR_CHECK_BINARY	  CODE	    0378	 609
+PREPARE_OPERATOR_DONE		  CODE	    038D	 621
+PREPARE_OPERATOR_ENTRY		  CODE	    0369	 602
+PREPARE_OPERATOR_ERROR		  CODE	    038A	 619
+PREPARE_OPERATOR_EXECUTE_CHAIN	  CODE	    037E	 612
+PREPARE_OPERATOR_USE_ANS	  CODE	    0386	 616
+PROCESS_KEY			  CODE	    0043	 114
+PROD0				  NUMBER    003B	  55
+PROD1				  NUMBER    003C	  56
+PROD2				  NUMBER    003D	  57
+PROD3				  NUMBER    003E	  58
+PS				  BIT	      BC
+PSW				  DATA	      D0
+PT0				  BIT	      B9
+PT1				  BIT	      BB
+PX0				  BIT	      B8
+PX1				  BIT	      BA
+P_DEC_L				  CODE	    06F5	1193
+QUO_H				  NUMBER    0033	  47
+QUO_L				  NUMBER    0034	  48
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 29
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+RB8				  BIT	      9A
+RD				  BIT	      B7
+REM_H				  NUMBER    0035	  49
+REM_L				  NUMBER    0036	  50
+REN				  BIT	      9C
+RESET				  CODE	    0000
+RESET_STATE			  CODE	    02E2	 529
+RI				  BIT	      98
+RS0				  BIT	      D3
+RS1				  BIT	      D4
+RXD				  BIT	      B0
+SBUF				  DATA	      99
+SCAN_ROW_0			  CODE	    042E	 716
+SCAN_ROW_1			  CODE	    043F	 723
+SCAN_ROW_2			  CODE	    0450	 730
+SCAN_ROW_3			  CODE	    0461	 737
 SCON				  DATA	      98
-SELECT_MODE			  CODE	    027B	 462
-SELECT_MODE_2			  CODE	    0286	 467
-SELECT_MODE_3			  CODE	    0291	 472
-SELECT_MODE_DONE		  CODE	    02A2	 480
-SEND_BACKSPACE_EVENT		  CODE	    020F	 390
-SEND_BYTE			  CODE	    030D	 545
-SEND_DECIMAL_RESULT		  CODE	    033D	 573
-SEND_DIGIT_ERROR		  CODE	    00C7	 177
-SEND_ERROR			  CODE	    0325	 560
-SEND_FRACTION_SIGN		  CODE	    0352	 584
-SEND_PLAIN_DECIMAL		  CODE	    036F	 598
-SEND_RESULT			  CODE	    032F	 566
-SEND_RESULT_SIGN		  CODE	    037A	 604
-SEND_WAIT_ACK			  CODE	    0318	 552
-SEND_WAIT_TX			  CODE	    0313	 549
-SET_ERROR			  CODE	    06C8	1182
-SHOW_MODE_MENU			  CODE	    0270	 456
+SELECT_MODE			  CODE	    0311	 554
+SELECT_MODE_2			  CODE	    031C	 559
+SELECT_MODE_3			  CODE	    0327	 564
+SELECT_MODE_DONE		  CODE	    0338	 572
+SEND_BACKSPACE_EVENT		  CODE	    0276	 454
+SEND_BACKSPACE_REMOVE_OPERATOR	  CODE	    0284	 464
+SEND_BACKSPACE_SHOW_OPERATOR	  CODE	    027D	 459
+SEND_BYTE			  CODE	    03A7	 639
+SEND_DECIMAL_RESULT		  CODE	    03D7	 667
+SEND_DIGIT_ERROR		  CODE	    00E8	 200
+SEND_ERROR			  CODE	    03BF	 654
+SEND_PLAIN_DECIMAL		  CODE	    03FB	 685
+SEND_REMAINDER_SIGN		  CODE	    03E6	 675
+SEND_RESULT			  CODE	    03C9	 660
+SEND_RESULT_SIGN		  CODE	    0406	 691
+SEND_WAIT_ACK			  CODE	    03B2	 646
+SEND_WAIT_TX			  CODE	    03AD	 643
+SET_ERROR			  CODE	    0754	1269
+SHOW_MODE_MENU			  CODE	    0306	 548
 SINT				  CODE	    0023
 SM0				  BIT	      9F
 SM1				  BIT	      9E
 SM2				  BIT	      9D
 SP				  DATA	      81
-SQRT_EXACT			  CODE	    06B5	1166
-SQRT_LOOP			  CODE	    0690	1135
-SQRT_OVERSHOOT			  CODE	    06AD	1158
-SQRT_START			  CODE	    068E	1132
-START_NEW_ENTRY			  CODE	    02AB	 488
-STORE_DECIMAL_DIGIT		  CODE	    00A3	 156
-SUB_FROM_NEGATIVE_ANS		  CODE	    0546	 902
-SUB_NEG_OK			  CODE	    0551	 911
-SUB_RESULT_NEGATIVE		  CODE	    053C	 892
-SUB_RESULT_POSITIVE		  CODE	    0532	 882
+SQRT_EXACT			  CODE	    0741	1253
+SQRT_LOOP			  CODE	    071C	1222
+SQRT_OVERSHOOT			  CODE	    0739	1245
+SQRT_START			  CODE	    071A	1219
+START_NEW_ENTRY			  CODE	    0341	 580
+STORE_DECIMAL_DIGIT		  CODE	    00C4	 179
+SUB_FROM_NEGATIVE_ANS		  CODE	    05D2	 989
+SUB_NEG_OK			  CODE	    05DD	 998
+SUB_RESULT_NEGATIVE		  CODE	    05C8	 979
+SUB_RESULT_POSITIVE		  CODE	    05BE	 969
 T0				  BIT	      B4
 T1				  BIT	      B5
 TB8				  BIT	      9B
 TCON				  DATA	      88
 TF0				  BIT	      8D
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 30
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
 TF1				  BIT	      8F
 TH0				  DATA	      8C
 TH1				  DATA	      8D
@@ -1669,22 +1792,15 @@ TIMER1				  CODE	    001B
 TL0				  DATA	      8A
 TL1				  DATA	      8B
 TMOD				  DATA	      89
-TMP_H				  NUMBER    0031	  41
-TMP_L				  NUMBER    0032	  42
+TMP_H				  NUMBER    0031	  45
+TMP_L				  NUMBER    0032	  46
 TR0				  BIT	      8C
 TR1				  BIT	      8E
 TXD				  BIT	      B1
-TX_BYTE				  NUMBER    0047	  62
-UART_INIT			  CODE	    02F4	 533
-UNARY_BS_NO_DIGIT		  CODE	    01AF	 317
-UNARY_PENDING			  CODE	    0194	 295
-
-ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 28
-
-
-
-SYMBOL				  TYPE     VALUE	LINE
-------------------------------------------------------------
-UNKNOWN_KEY			  CODE	    018A	 289
-WAIT_KEY_RELEASE		  CODE	    0419	 692
+TX_BYTE				  NUMBER    0047	  66
+UART_INIT			  CODE	    038E	 627
+UNARY_BS_NO_DIGIT		  CODE	    01E6	 354
+UNARY_PENDING			  CODE	    01C1	 325
+UNKNOWN_KEY			  CODE	    01B7	 319
+WAIT_KEY_RELEASE		  CODE	    04A5	 779
 WR				  BIT	      B6
